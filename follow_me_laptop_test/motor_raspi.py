@@ -1,81 +1,83 @@
-"""
-motor_raspi.py — Real UART motor controller cho Raspberry Pi.
+﻿"""
+motor_raspi.py - Real UART motor controller cho Raspberry Pi.
 
-Giao tiếp với board điều khiển động cơ (STM32 / Arduino) qua cổng UART.
+Binary frame protocol (7 bytes):
+  [0xAA] [speed_a] [dir_a] [speed_b] [dir_b] [CRC] [0x55]
+  speed : 0=phanh, 1-255=chay
+  dir   : 0=CW, 1=CCW
+  ACK   : STM32 gui 0x06
 
-Sơ đồ kết nối (Raspberry Pi 4):
-  Pi TX  (GPIO 14, pin 8)  →  Board RX
-  Pi RX  (GPIO 15, pin 10) ←  Board TX
-  GND    (pin 6)           ↔  Board GND
-
-Cổng mặc định: /dev/ttyAMA0  (UART hardware — cần tắt console serial trong raspi-config)
-Nếu dùng USB-Serial: /dev/ttyUSB0
-
-Format lệnh gửi: "M,left,right\n"
-  left, right: tốc độ bánh (0–100 hoặc -100–100 nếu hỗ trợ lùi)
-
-Cài thư viện:
-  pip install pyserial
-
-Bật UART trên RPi:
-  sudo raspi-config → Interface Options → Serial Port
-    - "Would you like a login shell to be accessible over serial?" → No
-    - "Would you like the serial port hardware to be enabled?" → Yes
-  sudo reboot
+API ngoai: send(left, right) voi 0-100
 """
 
 import serial
 import config
 
+FRAME_SOF = 0xAA
+FRAME_EOF = 0x55
+
+
+def calc_crc(data: bytes) -> int:
+    crc = 0
+    for b in data:
+        crc ^= b
+    return crc
+
+
+def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
+    speed_a = max(0, min(255, int(speed_a)))
+    speed_b = max(0, min(255, int(speed_b)))
+    dir_a   = 1 if dir_a else 0
+    dir_b   = 1 if dir_b else 0
+    payload = bytes([speed_a, dir_a, speed_b, dir_b])
+    return bytes([FRAME_SOF]) + payload + bytes([calc_crc(payload), FRAME_EOF])
+
 
 class RealMotorUART:
-    """
-    Gửi lệnh điều khiển motor qua UART đến board STM32 / Arduino.
-
-    Format lệnh: "M,left,right\\n"
-      left  : tốc độ bánh trái  (0–100)
-      right : tốc độ bánh phải  (0–100)
-    """
-
-    def __init__(
-        self,
-        port: str = "/dev/ttyAMA0",
-        baudrate: int = 115200,
-    ):
+    def __init__(self, port="/dev/ttyAMA0", baudrate=115200, timeout=0.1):
         self._port     = port
-        self._baudrate = baudrate
         self._last_cmd = (-999, -999)
         try:
-            self.ser = serial.Serial(port, baudrate, timeout=1)
-            print(f"[UART] RealMotorUART connected → {port}  @{baudrate} baud")
+            self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
+            print(f"[UART] RealMotorUART connected -> {port} @{baudrate} baud")
         except serial.SerialException as e:
-            raise RuntimeError(
-                f"[UART] Không mở được cổng {port}: {e}\n"
-                f"       Kiểm tra: ls /dev/tty* | raspi-config serial port"
-            ) from e
+            raise RuntimeError(f"[UART] Khong mo duoc cong {port}: {e}") from e
 
-    def send(self, left: int, right: int):
-        """
-        Gửi lệnh tốc độ motor.
-        Chỉ gửi khi lệnh thay đổi để tránh spam UART.
-        """
-        left  = max(-100, min(100, int(left)))
-        right = max(-100, min(100, int(right)))
+    def send(self, left: int, right: int) -> bool:
+        left  = max(0, min(100, int(left)))
+        right = max(0, min(100, int(right)))
         if (left, right) == self._last_cmd:
-            return
-        cmd = f"M,{left},{right}\n"
+            return True
+        frame = build_frame(int(left/100*255), 0, int(right/100*255), 0)
         try:
-            self.ser.write(cmd.encode("ascii"))
-            self._last_cmd = (left, right)
+            self.ser.write(frame)
+            ack = self.ser.read(1)
+            ok  = (ack == bytes([0x06]))
+            if ok:
+                self._last_cmd = (left, right)
+            else:
+                print(f"[UART] ACK khong hop le: {ack.hex() if ack else 'timeout'}")
+            return ok
         except serial.SerialException as e:
-            print(f"[UART] Lỗi ghi UART: {e}")
+            print(f"[UART] Loi ghi UART: {e}")
+            return False
+
+    def send_raw(self, speed_a, dir_a, speed_b, dir_b) -> bool:
+        """Gui thang binary frame (speed 0-255, dir CW/CCW)."""
+        frame = build_frame(speed_a, dir_a, speed_b, dir_b)
+        try:
+            self.ser.write(frame)
+            ack = self.ser.read(1)
+            return ack == bytes([0x06])
+        except serial.SerialException as e:
+            print(f"[UART] Loi ghi UART (raw): {e}")
+            return False
 
     def stop(self):
-        """Dừng tất cả động cơ ngay lập tức."""
         self.send(0, 0)
+        self._last_cmd = (-999, -999)
 
     def close(self):
-        """Đóng kết nối serial."""
         try:
             self.stop()
             self.ser.close()
