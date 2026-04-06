@@ -44,16 +44,27 @@ fi
 systemctl disable serial-getty@ttyAMA0.service 2>/dev/null || true
 echo "  Da tat serial-getty service"
 
-# ---------- 3. Cai pip packages ----------
+# ---------- 3. Tao venv + cai pip packages ----------
 echo ""
-echo "[3/4] Cai Python packages ..."
-pip3 install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow ultralytics --break-system-packages 2>/dev/null \
-  || pip3 install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow ultralytics
+echo "[3/5] Tao Python virtual environment ..."
+VENV_DIR="$(pwd)/venv"
+if [ -n "$SUDO_USER" ]; then
+    sudo -u "$SUDO_USER" python3 -m venv "$VENV_DIR"
+else
+    python3 -m venv "$VENV_DIR"
+fi
+source "$VENV_DIR/bin/activate"
+echo "  => venv tai: $VENV_DIR"
+
+echo ""
+echo "[4/5] Cai Python packages trong venv ..."
+pip install --upgrade pip
+pip install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow ultralytics
 echo "  => Xong cai packages"
 
-# ---------- 4. Them user vao group gpio/dialout ----------
+# ---------- 5. Them user vao group gpio/dialout ----------
 echo ""
-echo "[4/4] Them user '$SUDO_USER' vao group gpio + dialout ..."
+echo "[5/5] Them user '$SUDO_USER' vao group gpio + dialout ..."
 if [ -n "$SUDO_USER" ]; then
     usermod -aG gpio,dialout "$SUDO_USER"
     echo "  => Da them $SUDO_USER vao gpio + dialout"
@@ -72,8 +83,10 @@ echo "    ls /dev/ttyAMA*"
 echo "    # Phai thay: /dev/ttyAMA0  /dev/ttyAMA3"
 echo ""
 echo "  Test cam bien SEN0311:"
-echo "    python3 ultrasonic_raspi.py"
+echo "    source venv/bin/activate"
+echo "    python ultrasonic_raspi.py"
 echo ""
 echo "  Chay chinh:"
-echo "    python3 camera_follow_laptop.py"
+echo "    source venv/bin/activate"
+echo "    python camera_follow_laptop.py"
 echo "=================================================="
