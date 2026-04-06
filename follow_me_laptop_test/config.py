@@ -55,7 +55,11 @@ SERVER_PORT = 5000
 # ============================================================
 #  PERSON DETECTION
 # ============================================================
-DETECTOR_BACKEND = "yolo"   # "yolo" (YOLOv8n, cần ultralytics) hoặc "hog" (OpenCV built-in, fallback)
+# "onnx"  → ONNX Runtime (nhẹ ~15MB, không cần torch — ưu tiên RPi)
+# "yolo"  → ultralytics YOLO (cần torch ~2GB — nặng trên RPi)
+# "hog"   → OpenCV HOG (fallback, kém chính xác nhất)
+# Thứ tự fallback tự động: onnx → yolo → hog (hoặc yolo → onnx → hog)
+DETECTOR_BACKEND = "onnx"
 YOLO_CONFIDENCE  = 0.40     # Ngưỡng confidence tối thiểu để nhận diện người
 
 # ============================================================

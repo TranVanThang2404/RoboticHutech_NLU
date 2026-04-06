@@ -60,12 +60,12 @@ echo ""
 echo "[4/5] Cai Python packages trong venv ..."
 if [ -n "$SUDO_USER" ]; then
     sudo -u "$SUDO_USER" "$VENV_DIR/bin/pip" install --upgrade pip
-    sudo -u "$SUDO_USER" "$VENV_DIR/bin/pip" install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow ultralytics --resume-retries 5
+    sudo -u "$SUDO_USER" "$VENV_DIR/bin/pip" install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow onnxruntime --resume-retries 5
 else
     "$VENV_DIR/bin/pip" install --upgrade pip
-    "$VENV_DIR/bin/pip" install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow ultralytics --resume-retries 5
+    "$VENV_DIR/bin/pip" install pyserial RPi.GPIO flask opencv-python numpy "qrcode[pil]" Pillow onnxruntime --resume-retries 5
 fi
-echo "  => Xong cai packages"
+echo "  => Xong cai packages (ONNX Runtime - khong can torch)"
 
 # ---------- 5. Them user vao group gpio/dialout ----------
 echo ""

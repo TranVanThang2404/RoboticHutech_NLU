@@ -3,6 +3,7 @@ __pycache__/
 *.pyo
 *.pt
 *.pth
+!yolov8n.onnx
 .env
 *.log
 venv/

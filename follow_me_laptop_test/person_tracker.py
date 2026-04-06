@@ -88,6 +88,90 @@ class _YOLODetector:
         return bboxes
 
 
+class _ONNXDetector:
+    """YOLOv8n person detector dùng ONNX Runtime — nhẹ, không cần torch."""
+
+    def __init__(self, confidence: float = 0.40):
+        import os
+        import onnxruntime as ort
+        _model_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "yolov8n.onnx"
+        )
+        if not os.path.isfile(_model_path):
+            raise FileNotFoundError(f"Không tìm thấy {_model_path}")
+        self.session = ort.InferenceSession(
+            _model_path,
+            providers=["CPUExecutionProvider"],
+        )
+        self.conf       = confidence
+        self._input_name = self.session.get_inputs()[0].name
+        # YOLOv8n ONNX input: (1, 3, 640, 640)
+        self._imgsz     = 640
+        print(f"[DETECTOR] YOLOv8n ONNX ready  (onnxruntime CPU)")
+
+    def _preprocess(self, frame: np.ndarray):
+        """Letterbox resize + normalize → (1,3,640,640) float32."""
+        h, w = frame.shape[:2]
+        sz   = self._imgsz
+        scale = min(sz / h, sz / w)
+        nh, nw = int(h * scale), int(w * scale)
+        img = cv2.resize(frame, (nw, nh))
+
+        pad_h = sz - nh
+        pad_w = sz - nw
+        top    = pad_h // 2
+        left   = pad_w // 2
+        img = cv2.copyMakeBorder(
+            img, top, pad_h - top, left, pad_w - left,
+            cv2.BORDER_CONSTANT, value=(114, 114, 114),
+        )
+        img = img[:, :, ::-1].transpose(2, 0, 1).astype(np.float32) / 255.0
+        return img[np.newaxis], scale, top, left
+
+    def detect(self, frame: np.ndarray) -> list:
+        h, w = frame.shape[:2]
+        blob, scale, pad_top, pad_left = self._preprocess(frame)
+        outputs = self.session.run(None, {self._input_name: blob})
+        # output shape: (1, 84, 8400) — 84 = 4 bbox + 80 classes
+        preds = outputs[0][0]          # (84, 8400)
+        preds = preds.T               # (8400, 84)
+
+        # Class 0 = person
+        scores = preds[:, 4:]          # (8400, 80)
+        person_scores = scores[:, 0]   # class 0 = person
+        mask = person_scores >= self.conf
+        preds  = preds[mask]
+        person_scores = person_scores[mask]
+
+        if len(preds) == 0:
+            return []
+
+        # cx, cy, bw, bh → x1, y1, x2, y2 (trong ảnh 640×640 letterboxed)
+        cx = preds[:, 0]
+        cy = preds[:, 1]
+        bw = preds[:, 2]
+        bh = preds[:, 3]
+        x1 = cx - bw / 2
+        y1 = cy - bh / 2
+        x2 = cx + bw / 2
+        y2 = cy + bh / 2
+
+        # Chuyển về tọa độ ảnh gốc
+        x1 = ((x1 - pad_left) / scale).astype(int)
+        y1 = ((y1 - pad_top)  / scale).astype(int)
+        x2 = ((x2 - pad_left) / scale).astype(int)
+        y2 = ((y2 - pad_top)  / scale).astype(int)
+
+        # NMS đơn giản
+        bboxes = []
+        for i in range(len(x1)):
+            bx1 = max(0, int(x1[i]));  by1 = max(0, int(y1[i]))
+            bx2 = min(w, int(x2[i]));  by2 = min(h, int(y2[i]))
+            if (bx2 - bx1) > 10 and (by2 - by1) > 20:
+                bboxes.append((bx1, by1, bx2, by2))
+        return _nms(bboxes)
+
+
 def _nms(bboxes: list, thresh: float = 0.60) -> list:
     """IoU-based Non-Maximum Suppression (dùng cho HOG)."""
     if not bboxes:
@@ -136,14 +220,34 @@ class _HOGDetector:
 def create_detector(backend: str = "yolo", confidence: float = 0.40):
     """
     Factory: tạo detector tốt nhất có thể.
-    Nếu ultralytics chưa cài → tự động dùng HOG.
+
+    backend:
+      "onnx" → ONNX Runtime (nhẹ, không cần torch — ưu tiên cho RPi)
+      "yolo" → ultralytics YOLO (cần torch)
+      "hog"  → OpenCV HOG (fallback)
+
+    Thứ tự fallback: onnx → yolo → hog
     """
+    if backend.lower() == "onnx":
+        try:
+            return _ONNXDetector(confidence)
+        except (ImportError, FileNotFoundError, Exception) as e:
+            print(f"[DETECTOR] ONNX không khả dụng ({e}), thử YOLO...")
+            try:
+                return _YOLODetector(confidence)
+            except (ImportError, Exception):
+                print("[DETECTOR] YOLO cũng không khả dụng, dùng HOG")
+                return _HOGDetector()
     if backend.lower() == "yolo":
         try:
             return _YOLODetector(confidence)
         except (ImportError, Exception) as e:
-            print(f"[DETECTOR] YOLO không khả dụng ({e}), chuyển sang HOG")
-            return _HOGDetector()
+            print(f"[DETECTOR] YOLO không khả dụng ({e}), thử ONNX...")
+            try:
+                return _ONNXDetector(confidence)
+            except (ImportError, FileNotFoundError, Exception):
+                print("[DETECTOR] ONNX cũng không khả dụng, dùng HOG")
+                return _HOGDetector()
     return _HOGDetector()
 
 
