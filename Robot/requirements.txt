@@ -1,0 +1,25 @@
+# ===== ROBOTIC HUTECH - REQUIREMENTS =====
+
+# Core dependencies
+opencv-python==4.5.3.56
+numpy==1.21.0
+RPi.GPIO==0.7.0
+
+# Optional for Raspberry Pi
+# Uncomment lines below as needed:
+
+# For web control interface
+# flask==2.0.1
+
+# For Raspberry Pi camera (if using CSI camera instead of USB)
+# picamera==1.13
+
+# For configuration management
+# PyYAML==5.4.1
+
+# For data logging
+# pandas==1.3.0
+
+# For advanced ML models
+# tensorflow-lite==2.7.0
+# keras==2.4.3
