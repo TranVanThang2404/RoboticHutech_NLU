@@ -21,14 +21,20 @@ Phím tắt trong cửa sổ OpenCV:
 """
 
 import base64
+import os
 import sys
 import threading
 import time
 
+import config
+
+# Tắt Qt display backend của OpenCV khi không cần cửa sổ (HEADLESS / GUI dùng tkinter)
+if config.HEADLESS or config.USE_GUI:
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
 import cv2
 import numpy as np
 
-import config
 from person_tracker import TargetTracker, create_detector
 from pid_controller import PIDController
 from state_manager import State, state_manager
@@ -508,13 +514,7 @@ def camera_loop():
         all_bboxes  = []
         target_bbox = None
 
-        if obs.center_stop:
-            state_manager.state = State.OBSTACLE_STOP
-            left, right = 0, 0
-            steer_pid.reset()
-            speed_pid.reset()
-
-        elif not state_manager.is_paired:
+        if not state_manager.is_paired:
             state_manager.state = State.WAIT_FOR_PAIR
             left, right = 0, 0
 
@@ -527,47 +527,55 @@ def camera_loop():
 
         else:
             # --- Đã đăng ký → tìm và follow ---
-            # find_target trả về (result, all_bboxes) — detector chỉ gọi 1 lần
-            result, all_bboxes = tracker.find_target(frame, detector)
 
-            if result is not None:
-                target_bbox, (tcx, _tcy), last_sim = result
-                frame_area   = w * h
-                x1, y1, x2, y2 = target_bbox
-                bbox_area    = (x2 - x1) * (y2 - y1)
-                bbox_ratio   = bbox_area / max(frame_area, 1)
-
-                left, right  = compute_motor(
-                    tcx, fx, bbox_ratio, obs,
-                    steer_pid, speed_pid, dt,
-                )
-                last_seen    = t_now
-                lost_since   = None
-                state_manager.state = State.FOLLOWING
-
+            # Obstacle check chỉ khi đã đăng ký (tránh flap khi chưa follow)
+            if obs.center_stop:
+                state_manager.state = State.OBSTACLE_STOP
+                left, right = 0, 0
+                steer_pid.reset()
+                speed_pid.reset()
             else:
-                # Không tìm thấy trong frame này
-                if last_seen is None:
-                    state_manager.state = State.PAIRED_BUT_NO_TARGET
-                    left, right = 0, 0
-                    steer_pid.reset(); speed_pid.reset()
-                elif t_now - last_seen > config.TARGET_LOST_TIMEOUT:
-                    state_manager.state = State.TARGET_LOST
-                    last_sim    = 0.0
-                    target_bbox = None
-                    steer_pid.reset(); speed_pid.reset()
-                    # --- Spin-search: xoay tại chỗ tìm người ---
-                    if lost_since is None:
-                        lost_since = t_now
-                    spin_elapsed = t_now - lost_since
-                    if spin_elapsed < config.SEARCH_SPIN_DURATION:
-                        spd = config.SEARCH_SPIN_SPEED
-                        d   = config.SEARCH_SPIN_DIR
-                        left  =  spd * d    # +spd = bánh trái tiến
-                        right = -spd * d    # -spd = bánh phải lùi → xoay tại chỗ
-                    else:
-                        left, right = 0, 0  # hết thời gian xoay → dừng hẳn
-                # else: còn trong grace period → giữ lệnh cuối
+                # find_target trả về (result, all_bboxes) — detector chỉ gọi 1 lần
+                result, all_bboxes = tracker.find_target(frame, detector)
+
+                if result is not None:
+                    target_bbox, (tcx, _tcy), last_sim = result
+                    frame_area   = w * h
+                    x1, y1, x2, y2 = target_bbox
+                    bbox_area    = (x2 - x1) * (y2 - y1)
+                    bbox_ratio   = bbox_area / max(frame_area, 1)
+
+                    left, right  = compute_motor(
+                        tcx, fx, bbox_ratio, obs,
+                        steer_pid, speed_pid, dt,
+                    )
+                    last_seen    = t_now
+                    lost_since   = None
+                    state_manager.state = State.FOLLOWING
+
+                else:
+                    # Không tìm thấy trong frame này
+                    if last_seen is None:
+                        state_manager.state = State.PAIRED_BUT_NO_TARGET
+                        left, right = 0, 0
+                        steer_pid.reset(); speed_pid.reset()
+                    elif t_now - last_seen > config.TARGET_LOST_TIMEOUT:
+                        state_manager.state = State.TARGET_LOST
+                        last_sim    = 0.0
+                        target_bbox = None
+                        steer_pid.reset(); speed_pid.reset()
+                        # --- Spin-search: xoay tại chỗ tìm người ---
+                        if lost_since is None:
+                            lost_since = t_now
+                        spin_elapsed = t_now - lost_since
+                        if spin_elapsed < config.SEARCH_SPIN_DURATION:
+                            spd = config.SEARCH_SPIN_SPEED
+                            d   = config.SEARCH_SPIN_DIR
+                            left  =  spd * d    # +spd = bánh trái tiến
+                            right = -spd * d    # -spd = bánh phải lùi → xoay tại chỗ
+                        else:
+                            left, right = 0, 0  # hết thời gian xoay → dừng hẳn
+                    # else: còn trong grace period → giữ lệnh cuối
 
         # ====================================================
         #  Gửi lệnh motor (rate-limited)
