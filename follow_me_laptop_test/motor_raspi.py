@@ -35,11 +35,12 @@ def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
 
 
 class RealMotorUART:
-    def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.1):
+    def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.02):
         self._port     = port
         self._last_cmd = (-999, -999)
         try:
             self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
+            self.ser.reset_input_buffer()
             print(f"[UART] RealMotorUART connected -> {port} @{baudrate} baud")
         except serial.SerialException as e:
             raise RuntimeError(f"[UART] Khong mo duoc cong {port}: {e}") from e
@@ -57,13 +58,13 @@ class RealMotorUART:
         speed_b = round(abs(left)  / 100 * 255)  # B = trái
         frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
+            self.ser.reset_input_buffer()          # xóa ACK cũ tồn đọng
             self.ser.write(frame)
+            self._last_cmd = (left, right)          # luôn cache, tránh gửi lại liên tục
             ack = self.ser.read(1)
             ok  = (ack == bytes([0x06]))
-            if ok:
-                self._last_cmd = (left, right)
-            else:
-                print(f"[UART] ACK khong hop le: {ack.hex() if ack else 'timeout'}")
+            if not ok:
+                pass   # ACK miss không sao, frame tiếp sẽ gửi lại nếu khác
             return ok
         except serial.SerialException as e:
             print(f"[UART] Loi ghi UART: {e}")

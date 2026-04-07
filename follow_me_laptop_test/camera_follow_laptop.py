@@ -438,6 +438,11 @@ def camera_loop():
     target_bbox = None
     registering = False
 
+    # ---- EMA smoothing cho bbox (chống jitter trên RPi chậm) ----
+    _ema_alpha  = 0.4            # 0.0=giữ cũ, 1.0=dùng raw (0.4 = cân bằng)
+    _smooth_cx  = None           # tâm X đã làm mượt
+    _smooth_ratio = None         # bbox_area_ratio đã làm mượt
+
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -445,7 +450,7 @@ def camera_loop():
             break
 
         t_now = time.time()
-        dt    = min(t_now - prev_t, 0.20)   # clamp dt ≤ 200ms (tráng thái sau pause)
+        dt    = min(t_now - prev_t, 0.50)   # clamp dt ≤ 500ms (RPi ONNX chậm ~300-500ms/frame)
         prev_t = t_now
         h, w  = frame.shape[:2]
         fx    = w // 2
@@ -505,6 +510,8 @@ def camera_loop():
                 target_bbox = None
                 steer_pid.reset()   # reset PID khi đăng ký mới
                 speed_pid.reset()
+                _smooth_cx = None   # reset EMA
+                _smooth_ratio = None
 
         # ====================================================
         #  Multi-capture: chụp 6 tấm → chờ xác nhận → đăng ký
@@ -555,9 +562,8 @@ def camera_loop():
                 target_bbox = None
                 steer_pid.reset()
                 speed_pid.reset()
-
-        # ====================================================
-        #  State machine + follow logic
+                _smooth_cx = None   # reset EMA
+                _smooth_ratio = None
         # ====================================================
         all_bboxes  = []
         target_bbox = None
@@ -593,8 +599,16 @@ def camera_loop():
                     bbox_area    = (x2 - x1) * (y2 - y1)
                     bbox_ratio   = bbox_area / max(frame_area, 1)
 
+                    # ---- EMA smoothing: loại bỏ jitter bbox ----
+                    if _smooth_cx is None:
+                        _smooth_cx    = float(tcx)
+                        _smooth_ratio = bbox_ratio
+                    else:
+                        _smooth_cx    = _ema_alpha * tcx + (1 - _ema_alpha) * _smooth_cx
+                        _smooth_ratio = _ema_alpha * bbox_ratio + (1 - _ema_alpha) * _smooth_ratio
+
                     left, right  = compute_motor(
-                        tcx, fx, bbox_ratio, obs,
+                        int(_smooth_cx), fx, _smooth_ratio, obs,
                         steer_pid, speed_pid, dt,
                     )
                     last_seen    = t_now
@@ -607,11 +621,13 @@ def camera_loop():
                         state_manager.state = State.PAIRED_BUT_NO_TARGET
                         left, right = 0, 0
                         steer_pid.reset(); speed_pid.reset()
+                        _smooth_cx = None; _smooth_ratio = None
                     elif t_now - last_seen > config.TARGET_LOST_TIMEOUT:
                         state_manager.state = State.TARGET_LOST
                         last_sim    = 0.0
                         target_bbox = None
                         steer_pid.reset(); speed_pid.reset()
+                        _smooth_cx = None; _smooth_ratio = None
                         # --- Spin-search: xoay tại chỗ tìm người ---
                         if lost_since is None:
                             lost_since = t_now
@@ -715,6 +731,7 @@ def camera_loop():
             left, right = 0, 0
             last_sim    = 0.0
             target_bbox = None
+            _smooth_cx = None; _smooth_ratio = None
 
     # --- Dọn dẹp ---
     cap.release()
