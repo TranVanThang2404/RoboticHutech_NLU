@@ -35,9 +35,10 @@ def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
 
 
 class RealMotorUART:
-    def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.02):
+    def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.005):
         self._port     = port
         self._last_cmd = (-999, -999)
+        self._ack_miss_count = 0
         try:
             self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
             self.ser.reset_input_buffer()
@@ -48,6 +49,19 @@ class RealMotorUART:
     def send(self, left: int, right: int) -> bool:
         left  = max(-100, min(100, int(left)))
         right = max(-100, min(100, int(right)))
+
+        # Loại bỏ thay đổi rất nhỏ để xe bớt giật và STM32 không bị spam setpoint.
+        if self._last_cmd != (-999, -999):
+            force_send = (
+                (left == 0 and right == 0) or
+                (left > 0 > self._last_cmd[0]) or (left < 0 < self._last_cmd[0]) or
+                (right > 0 > self._last_cmd[1]) or (right < 0 < self._last_cmd[1])
+            )
+            if (not force_send and
+                    abs(left - self._last_cmd[0]) < config.MOTOR_CMD_DEADBAND and
+                    abs(right - self._last_cmd[1]) < config.MOTOR_CMD_DEADBAND):
+                return True
+
         if (left, right) == self._last_cmd:
             return True
         # Kênh A = bánh PHẢI,  Kênh B = bánh TRÁI
@@ -58,13 +72,21 @@ class RealMotorUART:
         speed_b = round(abs(left)  / 100 * 255)  # B = trái
         frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
-            self.ser.reset_input_buffer()          # xóa ACK cũ tồn đọng
             self.ser.write(frame)
-            self._last_cmd = (left, right)          # luôn cache, tránh gửi lại liên tục
-            ack = self.ser.read(1)
-            ok  = (ack == bytes([0x06]))
-            if not ok:
-                pass   # ACK miss không sao, frame tiếp sẽ gửi lại nếu khác
+            self._last_cmd = (left, right)
+            ok = True
+
+            # Không block chờ ACK; chỉ đọc nếu STM32 đã trả dữ liệu.
+            waiting = getattr(self.ser, "in_waiting", 0)
+            if waiting > 0:
+                ack = self.ser.read(waiting)
+                ok = bytes([0x06]) in ack
+                if ok:
+                    self._ack_miss_count = 0
+            else:
+                self._ack_miss_count += 1
+                if self._ack_miss_count % 50 == 0:
+                    print(f"[UART] ACK miss x{self._ack_miss_count} (non-blocking)")
             return ok
         except serial.SerialException as e:
             print(f"[UART] Loi ghi UART: {e}")
@@ -84,6 +106,7 @@ class RealMotorUART:
     def stop(self):
         self.send(0, 0)
         self._last_cmd = (-999, -999)
+        self._ack_miss_count = 0
 
     def close(self):
         try:

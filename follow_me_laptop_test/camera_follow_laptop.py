@@ -98,8 +98,10 @@ def compute_motor(
     Returns:
         (left_speed, right_speed)
     """
-    # ============ PID Speed: tính base speed ============
+    # ============ PID Speed: tính vận tốc tiến/lùi ============
     speed_err = config.BBOX_TARGET_RATIO - bbox_area_ratio
+    if abs(speed_err) < config.BBOX_HOLD_ZONE:
+        speed_err = 0.0
     speed_out = speed_pid.compute(speed_err, dt)       # speed units điều chỉnh
     base = int(config.BASE_SPEED + speed_out)
     base = max(config.MIN_SPEED, min(config.MAX_SPEED, base))
@@ -117,6 +119,14 @@ def compute_motor(
 
     steer_out = steer_pid.compute(steer_err, dt)       # speed differential
 
+    # Ưu tiên cua mượt: khi xe đang gần như đứng yên/tiến rất chậm thì
+    # không cho steering đủ lớn để biến thành quay tại chỗ liên tục.
+    if abs(base) < config.STEER_LOW_SPEED_CUTOFF:
+        if abs(steer_err) < config.STEER_LOW_SPEED_ERR:
+            steer_out = 0.0
+        else:
+            steer_out *= 0.35
+
     # ============ Tránh vật cản HAI BÊN (override steering) ============
     abs_base = max(abs(base), 1)
     if obs.left_blocked and not obs.right_blocked:
@@ -130,12 +140,38 @@ def compute_motor(
         steer_out = 0.0
         base = max(config.MIN_SPEED, int(base * 0.50))
 
+    # Khi đang FOLLOWING bình thường, giới hạn chênh lệch hai bánh theo base speed
+    # để ưu tiên cua vòng cung thay vì một bánh tiến một bánh lùi.
+    if base >= 0:
+        steer_out = max(-abs(base), min(abs(base), steer_out))
+
     # ============ Tổng hợp đầu ra ============
     left_speed  = max(config.MIN_SPEED, min(config.MAX_SPEED,
                       int(base + steer_out)))
     right_speed = max(config.MIN_SPEED, min(config.MAX_SPEED,
                       int(base - steer_out)))
     return left_speed, right_speed
+
+
+def _ramp_motor_command(prev_left: int, prev_right: int,
+                        target_left: int, target_right: int) -> tuple[int, int]:
+    """Giới hạn độ thay đổi tốc độ mỗi chu kỳ gửi để xe thật bớt giật."""
+    step = max(1, int(config.MOTOR_MAX_DELTA_PER_SEND))
+    reverse_brake = max(0, int(getattr(config, "MOTOR_REVERSE_BRAKE_THRESHOLD", 0)))
+
+    def _clamp_delta(prev: int, target: int) -> int:
+        # Với xe thật, nếu đang chạy đủ nhanh mà bị đảo chiều ngay thì
+        # buộc hãm về 0 trước một nhịp để giảm sốc cơ khí/hộp số.
+        if reverse_brake > 0 and prev * target < 0 and abs(prev) >= reverse_brake:
+            return 0
+        delta = target - prev
+        if delta > step:
+            return prev + step
+        if delta < -step:
+            return prev - step
+        return target
+
+    return _clamp_delta(prev_left, target_left), _clamp_delta(prev_right, target_right)
 
 
 # ============================================================
@@ -435,6 +471,7 @@ def camera_loop():
     last_tx       = 0.0
     prev_t      = time.time()   # thời điểm frame trước (tính dt cho PID)
     left, right = 0, 0
+    cmd_left, cmd_right = 0, 0
     last_sim    = 0.0
     all_bboxes  = []
     target_bbox = None
@@ -452,19 +489,42 @@ def camera_loop():
     _cached_bboxes   = []
     print(f"[CAMERA] Detect mỗi {_detect_every} frame (skip-frame)")
 
+    read_fail_count = 0
+
     while True:
         ret, frame = cap.read()
         if not ret:
-            print("[CAMERA] Đọc frame thất bại — camera bị ngắt?")
-            break
+            read_fail_count += 1
+            print(f"[CAMERA] Đọc frame thất bại ({read_fail_count}/{config.CAMERA_READ_FAIL_LIMIT})")
+            if read_fail_count >= config.CAMERA_READ_FAIL_LIMIT:
+                print("[SAFETY] Camera read failed too many times -> motor stop")
+                cmd_left = cmd_right = 0
+                motor.send(0, 0)
+                state_manager.update_motor(0, 0, last_sim)
+                break
+            time.sleep(0.02)
+            continue
+        read_fail_count = 0
 
         t_now = time.time()
-        dt    = min(t_now - prev_t, 0.50)   # clamp dt ≤ 500ms (RPi ONNX chậm ~300-500ms/frame)
+        loop_gap = t_now - prev_t
+        dt    = min(loop_gap, 0.50)   # clamp dt ≤ 500ms (RPi ONNX chậm ~300-500ms/frame)
         prev_t = t_now
         h, w  = frame.shape[:2]
         fx    = w // 2
 
         obs = ultrasonic.read()
+
+        # Watchdog: nếu camera/detector khựng quá lâu thì dừng fail-safe.
+        if loop_gap > config.CAMERA_STALL_TIMEOUT:
+            print(f"[SAFETY] Camera loop stalled {loop_gap:.3f}s -> motor stop")
+            left = right = 0
+            cmd_left = cmd_right = 0
+            motor.send(0, 0)
+            state_manager.update_motor(0, 0, last_sim)
+            steer_pid.reset()
+            speed_pid.reset()
+            continue
 
         # ====================================================
         #  EMERGENCY STOP — ưu tiên tuyệt đối, kiểm tra TRƯỚC HẾT
@@ -472,6 +532,7 @@ def camera_loop():
         if state_manager.is_emergency:
             state_manager.state = State.EMERGENCY_STOP
             left, right = 0, 0
+            cmd_left, cmd_right = 0, 0
             motor.send(0, 0)
             state_manager.update_motor(0, 0, last_sim)
             steer_pid.reset()
@@ -549,11 +610,14 @@ def camera_loop():
                         # Crop thumbnail
                         mx1, my1, mx2, my2 = mc_best
                         crop = frame[my1:my2, mx1:mx2]
-                        _, mc_jpg = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                        _, mc_jpg = cv2.imencode(
+                            ".jpg", crop,
+                            [cv2.IMWRITE_JPEG_QUALITY, config.MC_SNAPSHOT_JPEG_QUALITY]
+                        )
                         mc_b64 = base64.b64encode(mc_jpg.tobytes()).decode()
-                        # Face encoding chỉ lần đầu
+                        # Face encoding là tác vụ khá nặng; tắt mặc định trên RPi.
                         mc_face = None
-                        if state_manager.mc_count == 0:
+                        if config.MC_ENABLE_FACE_ENCODING and state_manager.mc_count == 0:
                             mc_face = tracker._face_verifier.encode(frame, mc_best)
                         state_manager.add_mc_snapshot(mc_b64, mc_desc, mc_face, mc_best)
                         state_manager.mc_last_time = t_now
@@ -664,8 +728,9 @@ def camera_loop():
         #  Gửi lệnh motor (rate-limited)
         # ====================================================
         if t_now - last_tx >= config.MOTOR_SEND_INTERVAL:
-            motor.send(left, right)
-            state_manager.update_motor(left, right, last_sim)
+            cmd_left, cmd_right = _ramp_motor_command(cmd_left, cmd_right, left, right)
+            motor.send(cmd_left, cmd_right)
+            state_manager.update_motor(cmd_left, cmd_right, last_sim)
             last_tx = t_now
 
         # ====================================================

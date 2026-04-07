@@ -62,28 +62,37 @@ class FollowMeGUI:
     #  Build UI
     # ---------------------------------------------------------- #
     def _build_ui(self):
+        self.root.grid_rowconfigure(0, weight=1)
+        self.root.grid_rowconfigure(1, weight=0)
+        self.root.grid_columnconfigure(0, weight=1)
+
         # ---- Camera feed (chiếm nhiều nhất có thể) ----
         self.cam_label = tk.Label(self.root, bg="#000", bd=0, highlightthickness=0)
-        self.cam_label.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 2))
+        self.cam_label.grid(row=0, column=0, sticky="nsew", padx=4, pady=(4, 2))
+
+        # ---- Bottom panel: luôn giữ chỗ cho nút điều khiển ----
+        self.bottom_panel = tk.Frame(self.root, bg=BG)
+        self.bottom_panel.grid(row=1, column=0, sticky="ew", padx=4, pady=(0, 4))
+        self.bottom_panel.grid_columnconfigure(0, weight=1)
 
         # ---- Status bar ----
         self.status_var = tk.StringVar(value="📷 Đứng trước camera → nhấn ĐĂNG KÝ")
         self.status_label = tk.Label(
-            self.root,
+            self.bottom_panel,
             textvariable=self.status_var,
             bg=BG_PANEL, fg=GRAY_L,
             font=("Segoe UI", 9, "bold"),
             padx=6, pady=3,
             relief=tk.FLAT,
         )
-        self.status_label.pack(fill=tk.X, padx=4, pady=1)
+        self.status_label.pack(fill=tk.X, pady=1)
 
         # ---- State label ẩn (debug) ----
         self.state_var = tk.StringVar(value="")
 
         # ---- Controls frame ----
-        ctrl = tk.Frame(self.root, bg=BG)
-        ctrl.pack(fill=tk.X, padx=4, pady=2)
+        ctrl = tk.Frame(self.bottom_panel, bg=BG)
+        ctrl.pack(fill=tk.X, pady=2)
 
         # Nút ĐĂNG KÝ
         self.btn_register = tk.Button(
@@ -98,7 +107,7 @@ class FollowMeGUI:
         self.btn_register.pack(fill=tk.X, ipady=5, pady=(0, 2))
 
         # ---- Snapshot carousel (ẩn ban đầu) ----
-        self.snap_frame = tk.Frame(self.root, bg=BG)
+        self.snap_frame = tk.Frame(self.bottom_panel, bg=BG)
 
         self.capture_label = tk.Label(
             self.snap_frame, text="Đang chụp… 0/6",
@@ -148,8 +157,8 @@ class FollowMeGUI:
         )
 
         # ---- Bottom: Emergency (compact) ----
-        bottom = tk.Frame(self.root, bg=BG)
-        bottom.pack(fill=tk.X, padx=4, pady=(2, 4))
+        bottom = tk.Frame(self.bottom_panel, bg=BG)
+        bottom.pack(fill=tk.X, pady=(2, 0))
 
         self.btn_emergency = tk.Button(
             bottom, text="\u26D4  DỪNG KHẨN CẤP",
@@ -187,11 +196,15 @@ class FollowMeGUI:
         if jpeg:
             try:
                 img = Image.open(io.BytesIO(jpeg))
-                # Resize to fit window width while keeping aspect ratio
-                win_w = max(self.cam_label.winfo_width(), 320)
-                ratio = win_w / img.width
-                new_h = int(img.height * ratio)
-                img = img.resize((win_w, new_h), Image.LANCZOS)
+                # Fit camera vào vùng còn lại, không đẩy mất panel đăng ký.
+                self.root.update_idletasks()
+                avail_w = max(self.cam_label.winfo_width(), 320)
+                avail_h = max(self.cam_label.winfo_height(), 180)
+                ratio = min(avail_w / max(img.width, 1), avail_h / max(img.height, 1))
+                ratio = max(ratio, 0.1)
+                new_w = max(1, int(img.width * ratio))
+                new_h = max(1, int(img.height * ratio))
+                img = img.resize((new_w, new_h), Image.LANCZOS)
                 self._cam_photo = ImageTk.PhotoImage(img)
                 self.cam_label.configure(image=self._cam_photo)
             except Exception:

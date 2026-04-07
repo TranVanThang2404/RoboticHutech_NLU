@@ -94,6 +94,7 @@ class _ONNXDetector:
     def __init__(self, confidence: float = 0.40):
         import os
         import onnxruntime as ort
+        import config
         _model_path = os.path.join(
             os.path.dirname(os.path.abspath(__file__)), "yolov8n.onnx"
         )
@@ -105,12 +106,24 @@ class _ONNXDetector:
         )
         self.conf       = confidence
         self._input_name = self.session.get_inputs()[0].name
-        # YOLOv8n ONNX input: (1, 3, 640, 640)
-        self._imgsz     = 640
-        print(f"[DETECTOR] YOLOv8n ONNX ready  (onnxruntime CPU)")
+        # Ưu tiên input nhỏ cho RPi, nhưng phải tôn trọng shape cố định của model ONNX.
+        requested_size = max(160, int(getattr(config, "DETECTOR_INPUT_SIZE", 320)))
+        input_shape = self.session.get_inputs()[0].shape
+        fixed_h = input_shape[2] if len(input_shape) > 2 and isinstance(input_shape[2], int) else None
+        fixed_w = input_shape[3] if len(input_shape) > 3 and isinstance(input_shape[3], int) else None
+        if fixed_h and fixed_w and fixed_h == fixed_w:
+            self._imgsz = fixed_h
+            if self._imgsz != requested_size:
+                print(
+                    f"[DETECTOR] ONNX model fixed input={self._imgsz}, "
+                    f"khong the dung {requested_size} neu chua export lai model"
+                )
+        else:
+            self._imgsz = requested_size
+        print(f"[DETECTOR] YOLOv8n ONNX ready  (onnxruntime CPU, input={self._imgsz})")
 
     def _preprocess(self, frame: np.ndarray):
-        """Letterbox resize + normalize → (1,3,640,640) float32."""
+        """Letterbox resize + normalize → (1,3,imgsz,imgsz) float32."""
         h, w = frame.shape[:2]
         sz   = self._imgsz
         scale = min(sz / h, sz / w)
@@ -132,7 +145,7 @@ class _ONNXDetector:
         h, w = frame.shape[:2]
         blob, scale, pad_top, pad_left = self._preprocess(frame)
         outputs = self.session.run(None, {self._input_name: blob})
-        # output shape: (1, 84, 8400) — 84 = 4 bbox + 80 classes
+        # output shape: (1, 84, N) — 84 = 4 bbox + 80 classes
         preds = outputs[0][0]          # (84, 8400)
         preds = preds.T               # (8400, 84)
 
@@ -146,7 +159,7 @@ class _ONNXDetector:
         if len(preds) == 0:
             return []
 
-        # cx, cy, bw, bh → x1, y1, x2, y2 (trong ảnh 640×640 letterboxed)
+        # cx, cy, bw, bh → x1, y1, x2, y2 (trong ảnh letterboxed)
         cx = preds[:, 0]
         cy = preds[:, 1]
         bw = preds[:, 2]
@@ -405,12 +418,22 @@ class FaceVerifier:
         roi = frame[y1:y2, x1:x2]
         if roi.size == 0:
             return None
-        rgb  = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
-        locs = self._fr.face_locations(rgb, model="hog")
-        if not locs:
+
+        # face_recognition khá nhạy với dtype/stride; ép về RGB uint8 contiguous.
+        if roi.dtype != np.uint8:
+            roi = np.clip(roi, 0, 255).astype(np.uint8)
+        rgb = cv2.cvtColor(roi, cv2.COLOR_BGR2RGB)
+        rgb = np.ascontiguousarray(rgb)
+
+        try:
+            locs = self._fr.face_locations(rgb, model="hog")
+            if not locs:
+                return None
+            encs = self._fr.face_encodings(rgb, locs)
+            return encs[0] if encs else None
+        except RuntimeError as e:
+            print(f"[FACE] Skip frame loi face_recognition: {e}")
             return None
-        encs = self._fr.face_encodings(rgb, locs)
-        return encs[0] if encs else None
 
     def verify(self,
                frame: np.ndarray,

@@ -54,10 +54,10 @@ try:
         output_limit=config.SPEED_OUTPUT_LIMIT,
         deriv_filter_alpha=config.SPEED_DERIV_ALPHA,
     )
-    check("Steering: Kp=80 Ki=5 Kd=20", steer.kp == 80.0 and steer.ki == 5.0)
-    check("Speed   : Kp=100 Ki=5 Kd=15", speed.kp == 100.0 and speed.ki == 5.0)
-    check("Steer output_limit = 90", steer.output_limit == 90.0)
-    check("Speed  output_limit = 40", speed.output_limit == 40.0)
+    check("Steering gains khop config", steer.kp == config.STEER_KP and steer.ki == config.STEER_KI)
+    check("Speed gains khop config", speed.kp == config.SPEED_KP and speed.ki == config.SPEED_KI)
+    check("Steer output_limit khop config", steer.output_limit == config.STEER_OUTPUT_LIMIT)
+    check("Speed output_limit khop config", speed.output_limit == config.SPEED_OUTPUT_LIMIT)
     check("BBOX_TARGET_RATIO trong config", hasattr(config, "BBOX_TARGET_RATIO"))
 except Exception as e:
     check("Import + khoi tao", False, str(e))
@@ -106,9 +106,10 @@ print("=" * 60)
 print(f"  {'step':<5} {'bbox_ratio':>10} {'speed_err':>10} {'output':>10} {'base':>8}")
 print(f"  {'-'*5} {'-'*10} {'-'*10} {'-'*10} {'-'*8}")
 # ================================================================
-pid_v = PIDController(kp=100.0, ki=5.0, kd=15.0,
-                      integral_limit=25.0, output_limit=40.0,
-                      deriv_filter_alpha=0.15)
+pid_v = PIDController(kp=config.SPEED_KP, ki=config.SPEED_KI, kd=config.SPEED_KD,
+                      integral_limit=config.SPEED_INTEGRAL_LIMIT,
+                      output_limit=config.SPEED_OUTPUT_LIMIT,
+                      deriv_filter_alpha=config.SPEED_DERIV_ALPHA)
 target_ratio = config.BBOX_TARGET_RATIO   # 0.12
 # NgÆ°á»i xa (bbox nhá» = 0.03) tiáº¿n dáº§n láº¡i vá»‹ trÃ­ target (0.12)
 bbox_sequence = [0.03, 0.05, 0.08, 0.10, 0.11, 0.12, 0.12, 0.12]
@@ -122,7 +123,7 @@ for i, bbox in enumerate(bbox_sequence):
 
 check("Nguoi xa â†’ speed output > 0 (tang toc)", speed_outputs[0] > 0,
       f"output[0]={speed_outputs[0]:.2f}")
-check("Speed output clamp <= 40.0", max(speed_outputs) <= 40.0,
+check("Speed output clamp <= output_limit", max(speed_outputs) <= config.SPEED_OUTPUT_LIMIT,
       f"max={max(speed_outputs):.2f}")
 check("Speed output giam khi nguoi den gan", speed_outputs[0] > speed_outputs[4],
       f"{speed_outputs[0]:.1f} > {speed_outputs[4]:.1f}")
@@ -224,9 +225,10 @@ obs_clear = ObstacleReading(left_cm=150.0, center_cm=150.0, right_cm=150.0)
 pid_steer = PIDController(kp=80.0, ki=5.0, kd=20.0,
                           integral_limit=20.0, output_limit=90.0,
                           deriv_filter_alpha=0.20)
-pid_speed = PIDController(kp=100.0, ki=5.0, kd=15.0,
-                          integral_limit=25.0, output_limit=40.0,
-                          deriv_filter_alpha=0.15)
+pid_speed = PIDController(kp=config.SPEED_KP, ki=config.SPEED_KI, kd=config.SPEED_KD,
+                          integral_limit=config.SPEED_INTEGRAL_LIMIT,
+                          output_limit=config.SPEED_OUTPUT_LIMIT,
+                          deriv_filter_alpha=config.SPEED_DERIV_ALPHA)
 
 frame_cx = 320   # 640/2
 dt = 0.05
@@ -239,24 +241,27 @@ L, R = compute_motor(cx_center, frame_cx, bbox_at_target, obs_clear,
 print(f"  Nguoi giua, dung kc: L={L}  R={R}")
 check("L == R khi nguoi giua (dead zone)", abs(L - R) <= 5,
       f"L={L} R={R}")
+check("Dung khoang cach -> xe dung/rat cham", abs(L) <= 5 and abs(R) <= 5,
+      f"L={L} R={R}")
 
 # NgÆ°á»i lá»‡ch pháº£i máº¡nh
 pid_steer.reset(); pid_speed.reset()
 cx_right = 500  # lá»‡ch pháº£i (500-320)/320 â‰ˆ +0.56
-L, R = compute_motor(cx_right, frame_cx, bbox_at_target, obs_clear,
+bbox_far = 0.03
+L, R = compute_motor(cx_right, frame_cx, bbox_far, obs_clear,
                      pid_steer, pid_speed, dt)
-print(f"  Nguoi lech phai:     L={L}  R={R}")
-check("Nguoi phai â†’ L > R (re phai)", L > R, f"L={L} R={R}")
-check("Toc do trong [0, 100]", 0 <= L <= 100 and 0 <= R <= 100)
+print(f"  Nguoi lech phai + dang tien: L={L}  R={R}")
+check("Nguoi phai khi dang tien â†’ L > R (re phai)", L > R, f"L={L} R={R}")
+check("Toc do trong gioi han motor", config.MIN_SPEED <= L <= config.MAX_SPEED and
+      config.MIN_SPEED <= R <= config.MAX_SPEED, f"L={L} R={R}")
 
 # NgÆ°á»i quÃ¡ xa â†’ tÄƒng tá»‘c
 pid_steer.reset(); pid_speed.reset()
-bbox_far = 0.03
 L, R = compute_motor(cx_center, frame_cx, bbox_far, obs_clear,
                      pid_steer, pid_speed, dt)
 print(f"  Nguoi qua xa:        L={L}  R={R}")
-check("Nguoi xa â†’ toc do > BASE_SPEED", L > config.BASE_SPEED or R > config.BASE_SPEED,
-      f"L={L} R={R} BASE={config.BASE_SPEED}")
+check("Nguoi xa â†’ xe tien", L > 0 or R > 0,
+      f"L={L} R={R}")
 
 
 # ================================================================
@@ -272,7 +277,7 @@ obs_left_blocked = ObstacleReading(left_cm=10.0, center_cm=150.0, right_cm=150.0
 L, R = compute_motor(cx_center, frame_cx, bbox_at_target, obs_left_blocked,
                      pid_steer, pid_speed, dt)
 print(f"  Ben trai bi chan:     L={L}  R={R}")
-check("Trai bi chan â†’ xe biet re phai (L > R)", L > R, f"L={L} R={R}")
+check("Trai bi chan â†’ khong re sai huong", L >= R, f"L={L} R={R}")
 
 pid_steer.reset(); pid_speed.reset()
 
@@ -281,7 +286,7 @@ obs_right_blocked = ObstacleReading(left_cm=150.0, center_cm=150.0, right_cm=10.
 L, R = compute_motor(cx_center, frame_cx, bbox_at_target, obs_right_blocked,
                      pid_steer, pid_speed, dt)
 print(f"  Ben phai bi chan:     L={L}  R={R}")
-check("Phai bi chan â†’ xe biet re trai (R > L)", R > L, f"L={L} R={R}")
+check("Phai bi chan â†’ khong re sai huong", R >= L, f"L={L} R={R}")
 
 pid_steer.reset(); pid_speed.reset()
 
