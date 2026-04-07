@@ -54,9 +54,6 @@ class FollowMeGUI:
 
         self._build_ui()
 
-        # Auto-pair (không cần QR / mạng)
-        state_manager.set_paired()
-
         # Bắt đầu poll
         self._poll_camera()
         self._poll_state()
@@ -266,6 +263,7 @@ class FollowMeGUI:
         self.capture_label.configure(text="Đang chụp… 0/6")
 
         self._set_status("⏳ Đứng yên trước camera…", ORANGE, BG_PANEL)
+        state_manager.set_paired()          # auto-pair khi nhấn ĐĂNG KÝ
         state_manager.start_multi_capture()
         self._capture_polling = True
         self._poll_capture()
@@ -337,6 +335,7 @@ class FollowMeGUI:
     def _cancel(self):
         self._capture_polling = False
         state_manager.cancel_multi_capture()
+        state_manager.set_paired()          # re-pair để cho phép đăng ký lại
         self._snap_photos = [None] * 6
 
         self.snap_frame.pack_forget()
@@ -361,7 +360,6 @@ class FollowMeGUI:
     def _reset(self):
         self._capture_polling = False
         state_manager.reset_pairing()
-        state_manager.set_paired()  # re-pair ngay (GUI mode, không cần QR)
         self._snap_photos = [None] * 6
         self.snap_frame.pack_forget()
         self.btn_register.configure(text="\U0001F4F8  ĐĂNG KÝ")
