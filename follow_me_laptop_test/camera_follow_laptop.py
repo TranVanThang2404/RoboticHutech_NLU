@@ -737,14 +737,29 @@ def main():
     print(f"  Camera index   : {config.CAMERA_INDEX}")
     print(f"  Detector       : {config.DETECTOR_BACKEND.upper()}")
     print(f"  Sim threshold  : {config.SIMILARITY_THRESHOLD}")
-    print(f"  UI mode        : {'GUI (tkinter)' if config.USE_GUI else 'Web (Flask)'}")
     print("=" * 60)
 
-    if config.USE_GUI:
+    # ---- Menu chọn chế độ ----
+    print("\n  Chọn chế độ giao diện:")
+    print("    [1] APP  — Giao diện tkinter (không cần mạng)")
+    print("    [2] WEB  — Giao diện web Flask (cần mạng, quét QR)")
+    print()
+
+    choice = ""
+    while choice not in ("1", "2"):
+        choice = input("  Nhập 1 hoặc 2 (mặc định=1): ").strip()
+        if choice == "":
+            choice = "1"
+
+    use_gui = (choice == "1")
+    config.USE_GUI = use_gui   # cập nhật runtime cho overlay selection
+    print()
+
+    if use_gui:
         # GUI mode: camera loop trong background thread, tkinter trong main thread
         from app_gui import run_gui
 
-        print("  Chế độ GUI — không cần mạng")
+        print("  → Chế độ APP (tkinter) — không cần mạng")
         print("  Phím: E=Emergency  R=Reset")
         print("=" * 60 + "\n")
 
@@ -758,6 +773,7 @@ def main():
         from app_server import run_server
 
         ip = config.get_local_ip()
+        print(f"  → Chế độ WEB (Flask)")
         print(f"  LAN IP         : {ip}")
         print(f"  QR page        : http://{ip}:{config.SERVER_PORT}/")
         print(f"  Pair URL       : http://{ip}:{config.SERVER_PORT}/pair")
