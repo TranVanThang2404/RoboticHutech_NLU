@@ -216,7 +216,17 @@ class FollowMeGUI:
         if self._closed:
             return
         st = state_manager.state
-        self.state_var.set(f"STATE: {st}")
+
+        # Hiển thị trạng thái thân thiện thay vì tên hằng số
+        _STATE_VI = {
+            State.WAIT_FOR_PAIR:        "Sẵn sàng",
+            State.PAIRED_BUT_NO_TARGET: "Chờ đăng ký",
+            State.FOLLOWING:            "Đang follow",
+            State.TARGET_LOST:          "Mất mục tiêu",
+            State.OBSTACLE_STOP:        "Vật cản",
+            State.EMERGENCY_STOP:       "DỪNG KHẨN CẤP",
+        }
+        self.state_var.set(_STATE_VI.get(st, st))
 
         if state_manager.is_emergency:
             self._set_status("⛔ DỪNG KHẨN CẤP", RED_L, "#3b0000")
@@ -229,6 +239,9 @@ class FollowMeGUI:
                 self._set_status("⚠ Mất mục tiêu — đứng vào khung hình", "#ff5252", "#3b0d0d")
             elif st == State.OBSTACLE_STOP:
                 self._set_status("🛑 Tạm dừng — vật cản phía trước", ORANGE, BG_PANEL)
+            elif st in (State.WAIT_FOR_PAIR, State.PAIRED_BUT_NO_TARGET):
+                if not self._capture_polling:
+                    self._set_status("📷 Đứng trước camera → nhấn ĐĂNG KÝ", GRAY_L, BG_PANEL)
 
         self.root.after(1000, self._poll_state)
 
