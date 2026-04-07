@@ -26,12 +26,10 @@ import sys
 import threading
 import time
 
+# Tắt cảnh báo Qt font (chỉ là warning, không ảnh hưởng)
+os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
+
 import config
-
-# Tắt Qt display backend của OpenCV khi không cần cửa sổ (HEADLESS / GUI dùng tkinter)
-if config.HEADLESS or config.USE_GUI:
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 import cv2
 import numpy as np
 
