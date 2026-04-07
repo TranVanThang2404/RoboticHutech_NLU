@@ -21,6 +21,10 @@ HARDWARE_MODE = "raspi"
 # False → dùng motor giả (test camera + sensor mà chưa cắm STM32)
 MOTOR_ENABLED = False
 
+# True  → dùng cảm biến siêu âm thật (SEN0311 qua UART)
+# False → dùng sensor giả (test camera mà chưa nối sensor / chưa bật UART3)
+SENSOR_ENABLED = False
+
 # True  → không gọi cv2.imshow / cv2.waitKey (chạy không cần màn hình / SSH)
 # False → hiển thị cửa sổ debug camera (cần display)
 HEADLESS = True

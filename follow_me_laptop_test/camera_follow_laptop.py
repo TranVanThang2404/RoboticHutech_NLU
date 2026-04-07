@@ -45,8 +45,12 @@ if config.HARDWARE_MODE == "raspi":
         from motor_raspi import RealMotorUART as _MotorClass
     else:
         from motor_fake import FakeMotorUART as _MotorClass     # type: ignore
-        print("[WARN] MOTOR_ENABLED=False -> dùng FakeMotor (test camera+sensor)")
-    from ultrasonic_raspi import RealUltrasonicArray as _UltrasonicClass
+        print("[WARN] MOTOR_ENABLED=False -> dùng FakeMotor")
+    if config.SENSOR_ENABLED:
+        from ultrasonic_raspi import RealUltrasonicArray as _UltrasonicClass
+    else:
+        from ultrasonic_mock import MockUltrasonicArray as _UltrasonicClass  # type: ignore
+        print("[WARN] SENSOR_ENABLED=False -> dùng MockSensor")
 else:
     from motor_fake import FakeMotorUART as _MotorClass         # type: ignore
     from ultrasonic_mock import MockUltrasonicArray as _UltrasonicClass  # type: ignore
