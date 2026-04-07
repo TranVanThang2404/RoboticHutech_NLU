@@ -58,6 +58,9 @@ USE_GUI = True
 #  CAMERA
 # ============================================================
 CAMERA_INDEX = 0          # 0 = webcam tích hợp | 1 = USB camera đầu tiên
+CAMERA_WIDTH  = 320       # độ phân giải capture (320 để RPi nhanh hơn, 640 nếu laptop mạnh)
+CAMERA_HEIGHT = 240
+DETECT_EVERY_N = 3        # chạy detector mỗi N frame (1=mọi frame, 3=nhanh 3x, giữ lại bbox cũ)
 
 # ============================================================
 #  SERVER (Flask)

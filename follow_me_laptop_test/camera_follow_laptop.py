@@ -391,9 +391,11 @@ def camera_loop():
         motor.close()
         sys.exit(1)
 
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    print("[CAMERA] Camera sẵn sàng  640x480")
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH,  config.CAMERA_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.CAMERA_HEIGHT)
+    actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"[CAMERA] Camera sẵn sàng  {actual_w}x{actual_h}")
     print("[CAMERA] Đang tải person detector…")
 
     detector = create_detector(config.DETECTOR_BACKEND, config.YOLO_CONFIDENCE)
@@ -442,6 +444,13 @@ def camera_loop():
     _ema_alpha  = 0.4            # 0.0=giữ cũ, 1.0=dùng raw (0.4 = cân bằng)
     _smooth_cx  = None           # tâm X đã làm mượt
     _smooth_ratio = None         # bbox_area_ratio đã làm mượt
+
+    # ---- Skip-frame detection: chạy detector mỗi N frame ----
+    _frame_count     = 0
+    _detect_every    = max(1, config.DETECT_EVERY_N)
+    _cached_result   = None      # kết quả find_target lần detect gần nhất
+    _cached_bboxes   = []
+    print(f"[CAMERA] Detect mỗi {_detect_every} frame (skip-frame)")
 
     while True:
         ret, frame = cap.read()
@@ -590,7 +599,17 @@ def camera_loop():
                 speed_pid.reset()
             else:
                 # find_target trả về (result, all_bboxes) — detector chỉ gọi 1 lần
-                result, all_bboxes = tracker.find_target(frame, detector)
+                _frame_count += 1
+                if _frame_count >= _detect_every:
+                    # ---- Frame detect: chạy ONNX inference ----
+                    _frame_count = 0
+                    result, all_bboxes = tracker.find_target(frame, detector)
+                    _cached_result = result
+                    _cached_bboxes = all_bboxes
+                else:
+                    # ---- Frame skip: dùng lại kết quả cũ ----
+                    result     = _cached_result
+                    all_bboxes = _cached_bboxes
 
                 if result is not None:
                     target_bbox, (tcx, _tcy), last_sim = result
