@@ -3,89 +3,124 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Follow Me Car — Pair Device</title>
+  <title>Follow Me Car — Dashboard</title>
   <style>
-    /* ---- Reset & Base ---- */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
       background: #0f0f1e;
       color: #e0e0e0;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Top bar ---- */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 16px;
+      background: #0a0a18;
+      border-bottom: 1px solid #222;
+      flex-shrink: 0;
+    }
+    .topbar h1 { font-size: 1.1rem; color: #00e5ff; }
+    .topbar .ip { font-size: 0.78rem; color: #666; }
+
+    /* ---- Main layout ---- */
+    .main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ---- Camera panel (left ~70%) ---- */
+    .cam-panel {
+      flex: 7;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      position: relative;
+      min-width: 0;
+    }
+    .cam-panel img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+    }
+    .cam-label {
+      position: absolute;
+      top: 6px; left: 10px;
+      font-size: 0.7rem;
+      color: #555;
+      background: rgba(0,0,0,0.6);
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    /* ---- Side panel (right ~30%) ---- */
+    .side-panel {
+      flex: 3;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      padding: 24px;
-      text-align: center;
+      padding: 12px 10px;
+      background: #12122a;
+      border-left: 1px solid #222;
+      overflow-y: auto;
+      min-width: 200px;
+      max-width: 320px;
     }
 
-    h1 {
-      font-size: 1.9rem;
-      color: #00e5ff;
-      letter-spacing: 1px;
-      margin-bottom: 6px;
-    }
-    .subtitle { color: #888; font-size: 0.95rem; margin-bottom: 22px; }
-
-    /* ---- QR Box ---- */
+    /* QR */
     .qr-wrapper {
       background: #fff;
-      border-radius: 14px;
-      padding: 18px;
-      display: inline-block;
-      box-shadow: 0 0 30px rgba(0, 229, 255, 0.25);
-      margin-bottom: 18px;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.2);
+      margin-bottom: 10px;
     }
-    .qr-wrapper img {
-      display: block;
-      width: 260px;
-      height: 260px;
-    }
+    .qr-wrapper img { display: block; width: 160px; height: 160px; }
 
-    /* ---- URL display ---- */
     .pair-url {
-      font-size: 0.85rem;
+      font-size: 0.7rem;
       color: #66ff99;
       word-break: break-all;
-      margin-bottom: 22px;
-      padding: 8px 14px;
+      margin-bottom: 10px;
+      padding: 5px 8px;
       background: rgba(100, 255, 150, 0.08);
       border: 1px solid #66ff9944;
-      border-radius: 6px;
-      max-width: 420px;
+      border-radius: 5px;
+      text-align: center;
+      width: 100%;
     }
 
-    /* ---- Steps ---- */
-    .steps {
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
-      max-width: 400px;
-      width: 100%;
-      margin-bottom: 24px;
-    }
+    /* Steps */
+    .steps { width: 100%; margin-bottom: 10px; }
     .step {
-      background: rgba(0, 229, 255, 0.07);
-      border-left: 3px solid #00e5ff;
-      padding: 9px 14px;
-      border-radius: 5px;
-      text-align: left;
-      font-size: 0.92rem;
-      color: #ccc;
+      background: rgba(0, 229, 255, 0.06);
+      border-left: 2px solid #00e5ff;
+      padding: 5px 8px;
+      margin-bottom: 4px;
+      border-radius: 3px;
+      font-size: 0.72rem;
+      color: #bbb;
     }
     .step strong { color: #00e5ff; }
 
-    /* ---- Status badge ---- */
+    /* Status */
     #status {
-      margin-top: 6px;
-      padding: 10px 28px;
-      border-radius: 8px;
+      width: 100%;
+      padding: 8px 12px;
+      border-radius: 6px;
       font-weight: bold;
-      font-size: 1rem;
-      transition: background 0.3s, color 0.3s;
-      min-width: 260px;
+      font-size: 0.85rem;
+      text-align: center;
+      margin-bottom: 8px;
     }
     .waiting       { background: #2a2a2a; color: #888;    border: 1px solid #444; }
     .paired        { background: #0d1f3b; color: #40c4ff; border: 1px solid #40c4ff; }
@@ -95,73 +130,70 @@
     .obstacle-stop { background: #3b2200; color: #ffab00; border: 1px solid #ffab00; }
     .emergency     { background: #3b0000; color: #ff1744; border: 2px solid #ff1744;
                      animation: pulse-red 0.8s infinite; }
-
     @keyframes pulse-red {
-      0%,100% { box-shadow: 0 0 8px rgba(213,0,0,0.5); }
-      50%      { box-shadow: 0 0 22px rgba(255,23,68,0.9); }
+      0%,100% { box-shadow: 0 0 6px rgba(213,0,0,0.5); }
+      50%     { box-shadow: 0 0 18px rgba(255,23,68,0.9); }
     }
 
-    /* ---- Operator emergency button ---- */
-    #btn-emg-op {
-      margin-top: 12px;
-      padding: 12px 32px;
-      font-size: 0.95rem;
-      font-weight: bold;
-      letter-spacing: 1px;
-      background: #1a0000;
-      color: #ff5252;
-      border: 2px solid #b71c1c;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: background 0.15s, box-shadow 0.15s;
-    }
-    #btn-emg-op:hover  { background: #2a0000; box-shadow: 0 0 12px rgba(213,0,0,0.4); }
-    #btn-emg-op.active { background: #b71c1c; color: #fff; border-color: #ff1744; animation: pulse-red 0.8s infinite; }
-    #btn-resume-op {
-      margin-top: 6px;
-      padding: 10px 32px;
-      font-size: 0.9rem;
-      font-weight: bold;
-      background: #001a0a;
-      color: #00e676;
-      border: 2px solid #00c853;
-      border-radius: 8px;
-      cursor: pointer;
-      display: none;
-      transition: background 0.15s;
-    }
-    #btn-resume-op.visible { display: inline-block; }
-    #btn-resume-op:hover   { background: #002a10; }
+    /* Buttons */
+    .btn-row { display: flex; gap: 6px; width: 100%; }
+    .btn-row button { flex: 1; padding: 8px 0; font-size: 0.75rem; font-weight: bold;
+      border-radius: 6px; cursor: pointer; border: 2px solid; letter-spacing: 0.5px; }
+    #btn-emg { background: #1a0000; color: #ff5252; border-color: #b71c1c; }
+    #btn-emg:hover { background: #2a0000; }
+    #btn-emg.active { background: #b71c1c; color: #fff; animation: pulse-red 0.8s infinite; }
+    #btn-resume { background: #001a0a; color: #00e676; border-color: #00c853; display: none; }
+    #btn-resume.visible { display: block; }
+    #btn-resume:hover { background: #002a10; }
+    #btn-reset { background: #0a0a1e; color: #aaa; border-color: #444; margin-top: 6px; width: 100%;
+      padding: 6px; font-size: 0.7rem; cursor: pointer; border-radius: 5px; }
+    #btn-reset:hover { background: #1a1a30; color: #ddd; }
   </style>
 </head>
 <body>
 
-  <h1>&#x1F697; Follow Me Car</h1>
-  <p class="subtitle">Quét mã QR bằng điện thoại để kết nối với xe</p>
-
-  <div class="qr-wrapper">
-    <img src="/qr_image" alt="QR Code — {{ pair_url }}" />
+  <!-- Top bar -->
+  <div class="topbar">
+    <h1>🚗 Follow Me Car</h1>
+    <span class="ip">{{ ip }}:{{ port }}</span>
   </div>
 
-  <div class="pair-url">{{ pair_url }}</div>
+  <!-- Main: Camera + Side -->
+  <div class="main">
 
-  <div class="steps">
-    <div class="step"><strong>1.</strong> Phone &amp; laptop phải cùng WiFi</div>
-    <div class="step"><strong>2.</strong> Mở camera điện thoại, quét QR code</div>
-    <div class="step"><strong>3.</strong> Trang đăng ký mở trên điện thoại</div>
-    <div class="step"><strong>4.</strong> Đứng trước webcam laptop (~1–2 m), nhấn ĐĂNG KÝ</div>
-    <div class="step"><strong>5.</strong> Xe nhận diện và follow đúng bạn dù đông người</div>
+    <!-- Camera feed -->
+    <div class="cam-panel">
+      <img id="cam" src="/video_feed" alt="Camera Feed" />
+      <div class="cam-label">LIVE</div>
+    </div>
+
+    <!-- QR + Status sidebar -->
+    <div class="side-panel">
+      <div class="qr-wrapper">
+        <img src="/qr_image" alt="QR Code" />
+      </div>
+      <div class="pair-url">{{ pair_url }}</div>
+
+      <div class="steps">
+        <div class="step"><strong>1.</strong> Cùng WiFi, quét QR</div>
+        <div class="step"><strong>2.</strong> Đứng trước camera ~1-2m</div>
+        <div class="step"><strong>3.</strong> Nhấn ĐĂNG KÝ trên điện thoại</div>
+        <div class="step"><strong>4.</strong> Xe bắt đầu follow bạn</div>
+      </div>
+
+      <div id="status" class="waiting">Chờ kết nối…</div>
+
+      <div class="btn-row">
+        <button id="btn-emg" onclick="doEmg()">⛔ DỪNG</button>
+        <button id="btn-resume" onclick="doResume()">▶ TIẾP TỤC</button>
+      </div>
+      <button id="btn-reset" onclick="doReset()">🔄 Reset Pairing</button>
+    </div>
+
   </div>
-
-  <div id="status" class="waiting">Chờ điện thoại kết nối…</div>
-  <button id="btn-emg-op" onclick="doEmgOp()">&#x26D4;&nbsp; DỪNG KHẨN CẤP (Operator)</button>
-  <button id="btn-resume-op" onclick="doResumeOp()">&#x25B6;&nbsp; TIẾP TỤC</button>
 
   <script>
     var isEmergency = false;
-    var btnEmgOp   = document.getElementById('btn-emg-op');
-    var btnResOp   = document.getElementById('btn-resume-op');
-
     var STATE_CLASS = {
       'WAIT_FOR_PAIR':        'waiting',
       'PAIRED_BUT_NO_TARGET': 'registered',
@@ -171,11 +203,11 @@
       'EMERGENCY_STOP':       'emergency',
     };
     var STATE_LABEL = {
-      'WAIT_FOR_PAIR':        'Chờ điện thoại kết nối…',
-      'PAIRED_BUT_NO_TARGET': '📱 Đã pair — chờ đăng ký người',
-      'FOLLOWING':            '🏃 Đang follow mục tiêu',
+      'WAIT_FOR_PAIR':        'Chờ kết nối…',
+      'PAIRED_BUT_NO_TARGET': '📱 Đã pair — chờ đăng ký',
+      'FOLLOWING':            '🏃 Đang follow',
       'TARGET_LOST':          '⚠️ Mất mục tiêu',
-      'OBSTACLE_STOP':        '🛑 Tạm dừng — vật cản',
+      'OBSTACLE_STOP':        '🛑 Vật cản — dừng',
       'EMERGENCY_STOP':       '⛔ DỪNG KHẨN CẤP',
     };
 
@@ -184,34 +216,22 @@
         .then(function(r) { return r.json(); })
         .then(function(data) {
           var el = document.getElementById('status');
-          // Sync emergency button state
           if (data.emergency !== isEmergency) {
             isEmergency = data.emergency;
-            if (isEmergency) {
-              btnEmgOp.classList.add('active');
-              btnResOp.classList.add('visible');
-            } else {
-              btnEmgOp.classList.remove('active');
-              btnResOp.classList.remove('visible');
-            }
+            document.getElementById('btn-emg').classList.toggle('active', isEmergency);
+            document.getElementById('btn-resume').classList.toggle('visible', isEmergency);
           }
           var state = data.state || 'WAIT_FOR_PAIR';
           el.className = STATE_CLASS[state] || 'waiting';
           el.textContent = STATE_LABEL[state] || state;
-        })
-        .catch(function() {});
+        }).catch(function() {});
     }
-
-    function doEmgOp() {
-      fetch('/emergency_stop', { method: 'POST' }).catch(function() {});
-    }
-    function doResumeOp() {
-      fetch('/resume', { method: 'POST' }).catch(function() {});
-    }
+    function doEmg()    { fetch('/emergency_stop', { method: 'POST' }); }
+    function doResume() { fetch('/resume', { method: 'POST' }); }
+    function doReset()  { if(confirm('Reset pairing?')) fetch('/reset', { method: 'POST' }); }
 
     setInterval(checkStatus, 1500);
     checkStatus();
   </script>
-
 </body>
 </html>

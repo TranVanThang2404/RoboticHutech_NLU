@@ -47,6 +47,18 @@ class StateManager:
         self._reg_done_event    = threading.Event()
         self._reg_result        = {}       # {"success": bool, "message": str}
 
+        # ---- Multi-capture (chụp 6 tấm xác nhận) ----
+        self._mc_active     = False
+        self._mc_snapshots  = []     # [{"jpeg_b64": str}]
+        self._mc_descriptors = []    # [np.ndarray] — descriptors Re-ID
+        self._mc_face_enc   = None   # face encoding từ snapshot đầu tiên
+        self._mc_bboxes     = []     # [tuple] — bbox gốc
+        self._mc_last_time  = 0.0
+        self._mc_max        = 6
+        self._mc_confirmed  = threading.Event()
+        self._mc_done_event = threading.Event()
+        self._mc_result     = {}     # {"success": bool, "message": str}
+
     # ------------------------------------------------------------------ #
     #  State
     # ------------------------------------------------------------------ #
@@ -183,6 +195,113 @@ class StateManager:
         print(f"[STATE] Registration complete — success={success}  msg={message}")
 
     # ------------------------------------------------------------------ #
+    #  Multi-capture (chụp 6 tấm → xác nhận)
+    # ------------------------------------------------------------------ #
+    def start_multi_capture(self):
+        """Flask gọi — bắt đầu chụp 6 tấm."""
+        with self._lock:
+            self._mc_active      = True
+            self._mc_snapshots   = []
+            self._mc_descriptors = []
+            self._mc_face_enc    = None
+            self._mc_bboxes      = []
+            self._mc_last_time   = 0.0
+            self._mc_confirmed.clear()
+            self._mc_done_event.clear()
+            self._mc_result = {}
+        print("[STATE] Multi-capture started (6 snapshots)")
+
+    @property
+    def mc_active(self) -> bool:
+        with self._lock:
+            return self._mc_active
+
+    @property
+    def mc_count(self) -> int:
+        with self._lock:
+            return len(self._mc_snapshots)
+
+    @property
+    def mc_last_time(self) -> float:
+        with self._lock:
+            return self._mc_last_time
+
+    @mc_last_time.setter
+    def mc_last_time(self, val: float):
+        with self._lock:
+            self._mc_last_time = val
+
+    def add_mc_snapshot(self, jpeg_b64: str, descriptor, face_enc=None, bbox=None):
+        """Camera thread gọi — thêm 1 snapshot."""
+        with self._lock:
+            if len(self._mc_snapshots) >= self._mc_max:
+                return
+            self._mc_snapshots.append({"jpeg_b64": jpeg_b64})
+            self._mc_descriptors.append(descriptor)
+            self._mc_bboxes.append(bbox)
+            if face_enc is not None and self._mc_face_enc is None:
+                self._mc_face_enc = face_enc
+            count = len(self._mc_snapshots)
+        print(f"[STATE] Multi-capture snapshot {count}/{self._mc_max}")
+
+    def get_mc_snapshots(self) -> dict:
+        """Flask gọi — trả về trạng thái capture hiện tại."""
+        with self._lock:
+            return {
+                "active": self._mc_active,
+                "count": len(self._mc_snapshots),
+                "max": self._mc_max,
+                "done": len(self._mc_snapshots) >= self._mc_max,
+                "snapshots": list(self._mc_snapshots),
+            }
+
+    def get_mc_data(self) -> tuple:
+        """Camera thread gọi khi user confirm — lấy descriptors + face."""
+        with self._lock:
+            return list(self._mc_descriptors), self._mc_face_enc, list(self._mc_bboxes)
+
+    def confirm_multi_capture(self, timeout: float = 4.0):
+        """
+        Flask gọi — user xác nhận. Báo camera thread đăng ký bằng 6 descriptors.
+        Block cho đến khi camera trả kết quả.
+        """
+        self._mc_confirmed.set()
+        got = self._mc_done_event.wait(timeout=timeout)
+        if not got:
+            self._mc_confirmed.clear()
+            return False, "Timeout — camera không phản hồi"
+        return (
+            self._mc_result.get("success", False),
+            self._mc_result.get("message", ""),
+        )
+
+    @property
+    def mc_confirmed(self) -> bool:
+        return self._mc_confirmed.is_set()
+
+    def complete_multi_capture(self, success: bool, message: str):
+        """Camera thread gọi — đăng ký xong."""
+        self._mc_result = {"success": success, "message": message}
+        with self._lock:
+            self._mc_active = False
+            self._registered = success
+        self._mc_confirmed.clear()
+        self._mc_done_event.set()
+        print(f"[STATE] Multi-capture confirm — success={success}  msg={message}")
+
+    def cancel_multi_capture(self):
+        """Flask gọi — user hủy."""
+        with self._lock:
+            self._mc_active      = False
+            self._mc_snapshots   = []
+            self._mc_descriptors = []
+            self._mc_face_enc    = None
+            self._mc_bboxes      = []
+        self._mc_confirmed.clear()
+        self._mc_done_event.clear()
+        print("[STATE] Multi-capture cancelled")
+
+    # ------------------------------------------------------------------ #
     #  Motor speeds (dùng cho debug overlay)
     # ------------------------------------------------------------------ #
     def update_motor(self, left: int, right: int, similarity: float = 0.0):
@@ -200,6 +319,19 @@ class StateManager:
     def last_similarity(self) -> float:
         with self._lock:
             return self._last_sim
+
+    # ------------------------------------------------------------------ #
+    #  Shared frame for web streaming (camera thread → Flask MJPEG)
+    # ------------------------------------------------------------------ #
+    def update_frame(self, jpeg_bytes: bytes):
+        """Camera thread gọi mỗi frame — lưu JPEG đã encode."""
+        with self._lock:
+            self._latest_jpeg = jpeg_bytes
+
+    def get_frame(self) -> bytes:
+        """Flask video_feed route gọi để lấy frame mới nhất."""
+        with self._lock:
+            return getattr(self, "_latest_jpeg", b"")
 
 
 # ------------------------------------------------------------------ #

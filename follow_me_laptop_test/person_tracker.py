@@ -541,6 +541,36 @@ class TargetTracker:
         area_pct = int(((x2 - x1) * (y2 - y1)) / frame_area * 100)
         return True, f"Đã đăng ký mục tiêu (diện tích ≈ {area_pct}% khung hình)"
 
+    def register_from_gallery(self, descriptors: list, face_enc=None, bboxes: list = None):
+        """
+        Đăng ký người từ gallery đã chụp trước (multi-capture).
+
+        Args:
+            descriptors: list[np.ndarray] — 6 descriptor đã extract sẵn
+            face_enc: face encoding (nếu có) từ snapshot đầu tiên
+            bboxes: list[tuple] — bbox gốc (dùng lấy last_center)
+
+        Returns:
+            (success: bool, message: str)
+        """
+        if not descriptors:
+            return False, "Không có descriptor nào"
+
+        self._gallery     = [d.copy() for d in descriptors]
+        self._registered  = True
+        self._face_encoding = face_enc
+        self._last_gallery_update = time.time()
+
+        if bboxes and bboxes[-1]:
+            x1, y1, x2, y2 = bboxes[-1]
+            self._last_bbox   = bboxes[-1]
+            self._last_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+
+        if face_enc is not None:
+            print("[TRACKER] Đã đăng ký khuôn mặt từ multi-capture")
+        print(f"[TRACKER] Multi-capture register — gallery={len(self._gallery)}/{self._gallery_size}")
+        return True, f"Đăng ký thành công ({len(self._gallery)} mẫu)"
+
     def find_target(self, frame: np.ndarray, detector):
         """
         Tìm người đã đăng ký trong frame hiện tại.

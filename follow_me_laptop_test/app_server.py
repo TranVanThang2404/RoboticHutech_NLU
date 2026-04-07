@@ -14,9 +14,10 @@ Routes:
 
 import io
 import logging
+import time
 
 import qrcode
-from flask import Flask, jsonify, render_template, request, send_file
+from flask import Flask, Response, jsonify, render_template, request, send_file
 
 import config
 from state_manager import State, state_manager
@@ -141,6 +142,66 @@ def reset():
     """Reset pairing + đăng ký (dùng khi test lại mà không restart server)."""
     state_manager.reset_pairing()
     return jsonify({"status": "ok", "message": "Pairing + registration reset"})
+
+
+# ============================================================
+#  Multi-capture (chụp 6 tấm → xác nhận)
+# ============================================================
+
+@app.route("/start_capture", methods=["POST"])
+def start_capture():
+    """Điện thoại nhấn ĐĂNG KÝ → bắt đầu chụp 6 tấm."""
+    if not state_manager.is_paired:
+        return jsonify({"success": False, "message": "Chưa pair — quét QR trước"}), 400
+    state_manager.start_multi_capture()
+    return jsonify({"success": True, "message": "Bắt đầu chụp"})
+
+
+@app.route("/capture_progress")
+def capture_progress():
+    """Điện thoại poll để lấy thumbnails đang chụp."""
+    return jsonify(state_manager.get_mc_snapshots())
+
+
+@app.route("/confirm_target", methods=["POST"])
+def confirm_target():
+    """Điện thoại xác nhận 6 tấm → camera thread đăng ký."""
+    if not state_manager.mc_active and state_manager.mc_count < 6:
+        return jsonify({"success": False, "message": "Chưa chụp đủ"}), 400
+    success, message = state_manager.confirm_multi_capture(timeout=4.0)
+    return jsonify({"success": success, "message": message})
+
+
+@app.route("/cancel_capture", methods=["POST"])
+def cancel_capture():
+    """Điện thoại hủy capture."""
+    state_manager.cancel_multi_capture()
+    return jsonify({"status": "ok"})
+
+
+# ============================================================
+#  Video feed (MJPEG stream cho web)
+# ============================================================
+
+def _gen_mjpeg():
+    """Generator: yield JPEG frames liên tục cho MJPEG stream."""
+    while True:
+        jpeg = state_manager.get_frame()
+        if jpeg:
+            yield (
+                b"--frame\r\n"
+                b"Content-Type: image/jpeg\r\n\r\n" + jpeg + b"\r\n"
+            )
+        time.sleep(0.05)   # ~20 FPS max
+
+
+@app.route("/video_feed")
+def video_feed():
+    """MJPEG stream — dùng trong <img src="/video_feed">."""
+    return Response(
+        _gen_mjpeg(),
+        mimetype="multipart/x-mixed-replace; boundary=frame",
+    )
 
 
 # ============================================================

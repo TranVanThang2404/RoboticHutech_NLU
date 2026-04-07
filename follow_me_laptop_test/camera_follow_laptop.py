@@ -20,6 +20,7 @@ Phím tắt trong cửa sổ OpenCV:
   R        — Reset pairing + đăng ký
 """
 
+import base64
 import sys
 import threading
 import time
@@ -450,6 +451,56 @@ def camera_loop():
                 speed_pid.reset()
 
         # ====================================================
+        #  Multi-capture: chụp 6 tấm → chờ xác nhận → đăng ký
+        # ====================================================
+        if state_manager.mc_active and state_manager.mc_count < 6:
+            if t_now - state_manager.mc_last_time >= 0.8:
+                mc_bboxes = detector.detect(frame)
+                if mc_bboxes:
+                    # Chọn người gần tâm + lớn nhất
+                    mc_best = None
+                    mc_best_score = -1.0
+                    for bb in mc_bboxes:
+                        bx1, by1, bx2, by2 = bb
+                        bcx  = (bx1 + bx2) / 2.0
+                        bcy  = (by1 + by2) / 2.0
+                        barea = (bx2 - bx1) * (by2 - by1)
+                        dist_n = (((bcx - fx) / max(fx, 1)) ** 2 +
+                                  ((bcy - h / 2) / max(h / 2, 1)) ** 2) ** 0.5 / 1.414
+                        sc = 0.55 * (1.0 - dist_n) + 0.45 * (barea / max(w * h, 1))
+                        if sc > mc_best_score:
+                            mc_best_score = sc
+                            mc_best = bb
+                    if mc_best:
+                        from person_tracker import extract_appearance
+                        mc_desc = extract_appearance(frame, mc_best)
+                        # Crop thumbnail
+                        mx1, my1, mx2, my2 = mc_best
+                        crop = frame[my1:my2, mx1:mx2]
+                        _, mc_jpg = cv2.imencode(".jpg", crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
+                        mc_b64 = base64.b64encode(mc_jpg.tobytes()).decode()
+                        # Face encoding chỉ lần đầu
+                        mc_face = None
+                        if state_manager.mc_count == 0:
+                            mc_face = tracker._face_verifier.encode(frame, mc_best)
+                        state_manager.add_mc_snapshot(mc_b64, mc_desc, mc_face, mc_best)
+                        state_manager.mc_last_time = t_now
+
+        # Multi-capture: user xác nhận → đăng ký
+        if state_manager.mc_confirmed:
+            mc_descs, mc_face_enc, mc_bbs = state_manager.get_mc_data()
+            ok, msg = tracker.register_from_gallery(mc_descs, mc_face_enc, mc_bbs)
+            state_manager.complete_multi_capture(ok, msg)
+            if ok:
+                last_seen   = None
+                lost_since  = None
+                left, right = 0, 0
+                last_sim    = 0.0
+                target_bbox = None
+                steer_pid.reset()
+                speed_pid.reset()
+
+        # ====================================================
         #  State machine + follow logic
         # ====================================================
         all_bboxes  = []
@@ -543,6 +594,25 @@ def camera_loop():
                 pid_speed=speed_pid.terms,
             )
             cv2.imshow("Follow Me -- Debug (Q=Quit O=Obstacle R=Reset)", frame)
+        else:
+            frame = draw_overlay(
+                frame,
+                target_bbox,
+                all_bboxes,
+                state_manager.state,
+                last_sim,
+                left, right,
+                obs,
+                registering,
+                gallery_count=tracker.gallery_count,
+                gallery_size=config.GALLERY_SIZE,
+                pid_steer=steer_pid.terms,
+                pid_speed=speed_pid.terms,
+            )
+
+        # Encode frame → JPEG cho web streaming
+        _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        state_manager.update_frame(jpeg.tobytes())
 
         # ====================================================
         #  Phím tắt (chỉ khi không headless)
