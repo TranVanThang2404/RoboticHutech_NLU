@@ -189,6 +189,50 @@ def _draw_sensor_bars(frame: np.ndarray, obs: "ObstacleReading"):
         )
 
 
+def draw_overlay_lite(frame: np.ndarray, target_bbox, all_bboxes: list,
+                     state: str, sim: float):
+    """Overlay nhẹ cho GUI mode (7-inch screen) — chỉ bbox + crosshair + 1 dòng state."""
+    h, w = frame.shape[:2]
+
+    # Crosshair
+    cv2.line(frame, (w // 2 - 20, h // 2), (w // 2 + 20, h // 2), (0, 255, 255), 1)
+    cv2.line(frame, (w // 2, h // 2 - 20), (w // 2, h // 2 + 20), (0, 255, 255), 1)
+
+    # Tất cả người
+    for bbox in all_bboxes:
+        x1, y1, x2, y2 = bbox
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (200, 140, 50), 1)
+
+    # Mục tiêu
+    if target_bbox is not None:
+        x1, y1, x2, y2 = target_bbox
+        cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 220, 0), 2)
+        cv2.circle(frame, (cx, cy), 6, (0, 0, 255), -1)
+        cv2.putText(frame, f"{sim:.2f}", (x1, max(y1 - 6, 12)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 0), 1)
+
+    # 1 dòng state nhỏ ở góc trên trái
+    _STATE_VI = {
+        State.WAIT_FOR_PAIR: "San sang",
+        State.PAIRED_BUT_NO_TARGET: "Cho dang ky",
+        State.FOLLOWING: "FOLLOWING",
+        State.TARGET_LOST: "MAT MUC TIEU",
+        State.OBSTACLE_STOP: "VAT CAN",
+        State.EMERGENCY_STOP: "DUNG KHAN CAP",
+    }
+    sc = _STATE_COLORS.get(state, (200, 200, 200))
+    label = _STATE_VI.get(state, state)
+    cv2.putText(frame, label, (8, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.55, sc, 2)
+
+    if state == State.EMERGENCY_STOP:
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (w, h), (0, 0, 255), -1)
+        cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
+
+    return frame
+
+
 def draw_overlay(
     frame: np.ndarray,
     target_bbox,
@@ -419,13 +463,19 @@ def camera_loop():
             steer_pid.reset()
             speed_pid.reset()
             # Vẽ overlay + encode JPEG (cho cả GUI và web stream)
-            frame = draw_overlay(
-                frame, target_bbox, all_bboxes,
-                state_manager.state, last_sim, left, right,
-                obs, registering,
-                gallery_count=tracker.gallery_count,
-                gallery_size=config.GALLERY_SIZE,
-            )
+            if config.USE_GUI:
+                frame = draw_overlay_lite(
+                    frame, target_bbox, all_bboxes,
+                    state_manager.state, last_sim,
+                )
+            else:
+                frame = draw_overlay(
+                    frame, target_bbox, all_bboxes,
+                    state_manager.state, last_sim, left, right,
+                    obs, registering,
+                    gallery_count=tracker.gallery_count,
+                    gallery_size=config.GALLERY_SIZE,
+                )
             _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
             state_manager.update_frame(jpeg.tobytes())
             if not config.HEADLESS:
@@ -603,20 +653,27 @@ def camera_loop():
             )
             cv2.imshow("Follow Me -- Debug (Q=Quit O=Obstacle R=Reset)", frame)
         else:
-            frame = draw_overlay(
-                frame,
-                target_bbox,
-                all_bboxes,
-                state_manager.state,
-                last_sim,
-                left, right,
-                obs,
-                registering,
-                gallery_count=tracker.gallery_count,
-                gallery_size=config.GALLERY_SIZE,
-                pid_steer=steer_pid.terms,
-                pid_speed=speed_pid.terms,
-            )
+            # HEADLESS hoặc GUI mode — overlay nhẹ khi GUI, đầy đủ khi web
+            if config.USE_GUI:
+                frame = draw_overlay_lite(
+                    frame, target_bbox, all_bboxes,
+                    state_manager.state, last_sim,
+                )
+            else:
+                frame = draw_overlay(
+                    frame,
+                    target_bbox,
+                    all_bboxes,
+                    state_manager.state,
+                    last_sim,
+                    left, right,
+                    obs,
+                    registering,
+                    gallery_count=tracker.gallery_count,
+                    gallery_size=config.GALLERY_SIZE,
+                    pid_steer=steer_pid.terms,
+                    pid_speed=speed_pid.terms,
+                )
 
         # Encode frame → JPEG cho web streaming
         _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])

@@ -62,54 +62,49 @@ class FollowMeGUI:
     #  Build UI
     # ---------------------------------------------------------- #
     def _build_ui(self):
-        # ---- Camera feed ----
+        # ---- Camera feed (chiếm nhiều nhất có thể) ----
         self.cam_label = tk.Label(self.root, bg="#000", bd=0, highlightthickness=0)
-        self.cam_label.pack(fill=tk.BOTH, expand=True, padx=6, pady=(6, 3))
+        self.cam_label.pack(fill=tk.BOTH, expand=True, padx=4, pady=(4, 2))
 
         # ---- Status bar ----
-        self.status_var = tk.StringVar(value="Chờ bạn nhấn ĐĂNG KÝ…")
+        self.status_var = tk.StringVar(value="📷 Đứng trước camera → nhấn ĐĂNG KÝ")
         self.status_label = tk.Label(
             self.root,
             textvariable=self.status_var,
             bg=BG_PANEL, fg=GRAY_L,
-            font=("Segoe UI", 11, "bold"),
-            padx=10, pady=6,
+            font=("Segoe UI", 9, "bold"),
+            padx=6, pady=3,
             relief=tk.FLAT,
         )
-        self.status_label.pack(fill=tk.X, padx=6, pady=2)
+        self.status_label.pack(fill=tk.X, padx=4, pady=1)
 
-        # ---- State label (nhỏ) ----
-        self.state_var = tk.StringVar(value="STATE: —")
-        tk.Label(
-            self.root, textvariable=self.state_var,
-            bg=BG, fg="#444", font=("Consolas", 8),
-        ).pack(anchor=tk.W, padx=10)
+        # ---- State label ẩn (debug) ----
+        self.state_var = tk.StringVar(value="")
 
         # ---- Controls frame ----
         ctrl = tk.Frame(self.root, bg=BG)
-        ctrl.pack(fill=tk.X, padx=6, pady=3)
+        ctrl.pack(fill=tk.X, padx=4, pady=2)
 
         # Nút ĐĂNG KÝ
         self.btn_register = tk.Button(
             ctrl, text="\U0001F4F8  ĐĂNG KÝ",
             bg=GREEN, fg="#000",
-            font=("Segoe UI", 13, "bold"),
+            font=("Segoe UI", 11, "bold"),
             activebackground="#00e676",
             relief=tk.FLAT, bd=0,
             cursor="hand2",
             command=self._start_capture,
         )
-        self.btn_register.pack(fill=tk.X, ipady=8, pady=(0, 4))
+        self.btn_register.pack(fill=tk.X, ipady=5, pady=(0, 2))
 
         # ---- Snapshot carousel (ẩn ban đầu) ----
         self.snap_frame = tk.Frame(self.root, bg=BG)
-        # Không pack — sẽ pack khi bắt đầu capture
 
         self.capture_label = tk.Label(
             self.snap_frame, text="Đang chụp… 0/6",
-            bg=BG, fg=ORANGE, font=("Segoe UI", 10, "bold"),
+            bg=BG, fg=ORANGE, font=("Segoe UI", 9, "bold"),
         )
-        self.capture_label.pack(pady=(0, 4))
+        self.capture_label.pack(pady=(0, 2))
 
         slots_frame = tk.Frame(self.snap_frame, bg=BG)
         slots_frame.pack()
@@ -117,25 +112,25 @@ class FollowMeGUI:
         for i in range(6):
             lbl = tk.Label(
                 slots_frame,
-                width=80, height=100,
+                width=56, height=70,
                 bg="#111", fg=CYAN,
                 text=str(i + 1),
-                font=("Segoe UI", 9, "bold"),
+                font=("Segoe UI", 8, "bold"),
                 relief=tk.RIDGE,
-                bd=2,
+                bd=1,
                 highlightbackground=GRAY,
             )
-            lbl.grid(row=0, column=i, padx=3, pady=3)
+            lbl.grid(row=0, column=i, padx=2, pady=2)
             self.snap_labels.append(lbl)
 
         # Nút XÁC NHẬN / HỦY
         btn_row = tk.Frame(self.snap_frame, bg=BG)
-        btn_row.pack(fill=tk.X, pady=(4, 0))
+        btn_row.pack(fill=tk.X, pady=(2, 0))
 
         self.btn_confirm = tk.Button(
-            btn_row, text="\u2705  XÁC NHẬN — Bắt đầu follow",
+            btn_row, text="\u2705  XÁC NHẬN",
             bg=CYAN, fg="#000",
-            font=("Segoe UI", 12, "bold"),
+            font=("Segoe UI", 10, "bold"),
             activebackground="#4dd0e1",
             relief=tk.FLAT, bd=0,
             cursor="hand2",
@@ -143,37 +138,34 @@ class FollowMeGUI:
         )
 
         self.btn_cancel = tk.Button(
-            btn_row, text="\u274C  Hủy — chụp lại",
+            btn_row, text="\u274C  Hủy",
             bg=GRAY, fg="#aaa",
-            font=("Segoe UI", 10),
+            font=("Segoe UI", 9),
             activebackground="#555",
             relief=tk.FLAT, bd=0,
             cursor="hand2",
             command=self._cancel,
         )
 
-        # ---- Separator ----
-        tk.Frame(self.root, bg="#222", height=1).pack(fill=tk.X, padx=6, pady=4)
-
-        # ---- Bottom: Emergency + Resume ----
+        # ---- Bottom: Emergency (compact) ----
         bottom = tk.Frame(self.root, bg=BG)
-        bottom.pack(fill=tk.X, padx=6, pady=(0, 6))
+        bottom.pack(fill=tk.X, padx=4, pady=(2, 4))
 
         self.btn_emergency = tk.Button(
             bottom, text="\u26D4  DỪNG KHẨN CẤP",
             bg=RED, fg="#fff",
-            font=("Segoe UI", 13, "bold"),
+            font=("Segoe UI", 10, "bold"),
             activebackground=RED_L,
             relief=tk.FLAT, bd=0,
             cursor="hand2",
             command=self._toggle_emergency,
         )
-        self.btn_emergency.pack(fill=tk.X, ipady=10, pady=(0, 3))
+        self.btn_emergency.pack(fill=tk.X, ipady=6, pady=(0, 2))
 
         self.btn_resume = tk.Button(
             bottom, text="\u25B6  TIẾP TỤC",
             bg=GREEN_D, fg="#00e676",
-            font=("Segoe UI", 11, "bold"),
+            font=("Segoe UI", 9, "bold"),
             activebackground="#1b5e20",
             relief=tk.FLAT, bd=0,
             cursor="hand2",
@@ -282,7 +274,7 @@ class FollowMeGUI:
             try:
                 jpeg_bytes = base64.b64decode(snap["jpeg_b64"])
                 img = Image.open(io.BytesIO(jpeg_bytes))
-                img = img.resize((80, 100), Image.LANCZOS)
+                img = img.resize((56, 70), Image.LANCZOS)
                 photo = ImageTk.PhotoImage(img)
                 self._snap_photos[i] = photo
                 self.snap_labels[i].configure(
@@ -381,8 +373,8 @@ class FollowMeGUI:
 def run_gui():
     """Chạy tkinter mainloop — phải gọi từ main thread."""
     root = tk.Tk()
-    root.geometry("800x620")
-    root.minsize(640, 500)
+    root.geometry("800x480")
+    root.minsize(480, 360)
     app = FollowMeGUI(root)
     root.mainloop()
     return app._closed  # signal camera thread to stop
