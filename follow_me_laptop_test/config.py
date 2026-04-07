@@ -17,6 +17,10 @@ import socket
 # "raspi"   → dùng RealMotorUART (pyserial UART) + RealUltrasonicArray (RPi.GPIO)
 HARDWARE_MODE = "raspi"
 
+# True  → dùng motor thật (STM32 qua UART)
+# False → dùng motor giả (test camera + sensor mà chưa cắm STM32)
+MOTOR_ENABLED = False
+
 # True  → không gọi cv2.imshow / cv2.waitKey (chạy không cần màn hình / SSH)
 # False → hiển thị cửa sổ debug camera (cần display)
 HEADLESS = True

@@ -38,9 +38,14 @@ from ultrasonic_mock import ObstacleReading
 #  Dynamic hardware — đổi HARDWARE_MODE trong config.py
 #  "laptop" → FakeMotorUART + MockUltrasonicArray (test không cần phần cứng)
 #  "raspi"  → RealMotorUART (UART pyserial) + RealUltrasonicArray (RPi.GPIO HC-SR04)
+#  MOTOR_ENABLED = False → dùng motor giả nhưng sensor/camera thật (test trên RPi)
 # ============================================================
 if config.HARDWARE_MODE == "raspi":
-    from motor_raspi import RealMotorUART as _MotorClass
+    if config.MOTOR_ENABLED:
+        from motor_raspi import RealMotorUART as _MotorClass
+    else:
+        from motor_fake import FakeMotorUART as _MotorClass     # type: ignore
+        print("[WARN] MOTOR_ENABLED=False -> dùng FakeMotor (test camera+sensor)")
     from ultrasonic_raspi import RealUltrasonicArray as _UltrasonicClass
 else:
     from motor_fake import FakeMotorUART as _MotorClass         # type: ignore
