@@ -29,6 +29,10 @@ SENSOR_ENABLED = False
 # False → hiển thị cửa sổ debug camera (cần display)
 HEADLESS = True
 
+# True  → giao diện tkinter (app_gui.py), không cần mạng / Flask
+# False → giao diện web Flask + HTML (cần mạng, điện thoại quét QR)
+USE_GUI = True
+
 # ============================================================
 #  CHECKLIST KHI DEPLOY LÊN RASPBERRY PI
 # ============================================================

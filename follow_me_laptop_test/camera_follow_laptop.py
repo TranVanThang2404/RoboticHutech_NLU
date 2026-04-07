@@ -29,7 +29,6 @@ import cv2
 import numpy as np
 
 import config
-from app_server import run_server
 from person_tracker import TargetTracker, create_detector
 from pid_controller import PIDController
 from state_manager import State, state_manager
@@ -415,14 +414,17 @@ def camera_loop():
             state_manager.update_motor(0, 0, last_sim)
             steer_pid.reset()
             speed_pid.reset()
+            # Vẽ overlay + encode JPEG (cho cả GUI và web stream)
+            frame = draw_overlay(
+                frame, target_bbox, all_bboxes,
+                state_manager.state, last_sim, left, right,
+                obs, registering,
+                gallery_count=tracker.gallery_count,
+                gallery_size=config.GALLERY_SIZE,
+            )
+            _, jpeg = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            state_manager.update_frame(jpeg.tobytes())
             if not config.HEADLESS:
-                frame = draw_overlay(
-                    frame, target_bbox, all_bboxes,
-                    state_manager.state, last_sim, left, right,
-                    obs, registering,
-                    gallery_count=tracker.gallery_count,
-                    gallery_size=config.GALLERY_SIZE,
-                )
                 cv2.imshow("Follow Me -- Debug (Q=Quit O=Obstacle R=Reset)", frame)
                 key = cv2.waitKey(1) & 0xFF
                 if key in (ord("q"), 27):
@@ -666,31 +668,48 @@ def camera_loop():
 # ============================================================
 
 def main():
-    ip = config.get_local_ip()
     print("=" * 60)
     print("   Follow Me — Laptop Test MVP  (Person Re-ID)")
     print("=" * 60)
-    print(f"  LAN IP         : {ip}")
-    print(f"  QR page        : http://{ip}:{config.SERVER_PORT}/")
-    print(f"  Pair URL       : http://{ip}:{config.SERVER_PORT}/pair")
     print(f"  Camera index   : {config.CAMERA_INDEX}")
     print(f"  Detector       : {config.DETECTOR_BACKEND.upper()}")
     print(f"  Sim threshold  : {config.SIMILARITY_THRESHOLD}")
+    print(f"  UI mode        : {'GUI (tkinter)' if config.USE_GUI else 'Web (Flask)'}")
     print("=" * 60)
-    print("  FLOW:")
-    print("  1. Mở browser laptop → QR page")
-    print("  2. Điện thoại quét QR → trang /pair")
-    print("  3. Đứng trước camera, nhấn ĐĂNG KÝ trên điện thoại")
-    print("  4. Xe follow đúng bạn dù xung quanh có nhiều người")
-    print("=" * 60 + "\n")
 
-    # Khởi động Flask trong daemon thread
-    srv = threading.Thread(target=run_server, name="FlaskServer", daemon=True)
-    srv.start()
-    time.sleep(0.9)   # chờ Flask bind xong
+    if config.USE_GUI:
+        # GUI mode: camera loop trong background thread, tkinter trong main thread
+        from app_gui import run_gui
 
-    # Camera loop trong main thread (yêu cầu của OpenCV trên Windows)
-    camera_loop()
+        print("  Chế độ GUI — không cần mạng")
+        print("  Phím: E=Emergency  R=Reset")
+        print("=" * 60 + "\n")
+
+        cam_thread = threading.Thread(target=camera_loop, name="CameraLoop", daemon=True)
+        cam_thread.start()
+        time.sleep(0.5)  # chờ camera mở xong
+        run_gui()        # tkinter mainloop (block main thread)
+
+    else:
+        # Web mode: Flask trong daemon thread, camera loop trong main thread
+        from app_server import run_server
+
+        ip = config.get_local_ip()
+        print(f"  LAN IP         : {ip}")
+        print(f"  QR page        : http://{ip}:{config.SERVER_PORT}/")
+        print(f"  Pair URL       : http://{ip}:{config.SERVER_PORT}/pair")
+        print("=" * 60)
+        print("  FLOW:")
+        print("  1. Mở browser laptop → QR page")
+        print("  2. Điện thoại quét QR → trang /pair")
+        print("  3. Đứng trước camera, nhấn ĐĂNG KÝ trên điện thoại")
+        print("  4. Xe follow đúng bạn dù xung quanh có nhiều người")
+        print("=" * 60 + "\n")
+
+        srv = threading.Thread(target=run_server, name="FlaskServer", daemon=True)
+        srv.start()
+        time.sleep(0.9)   # chờ Flask bind xong
+        camera_loop()     # main thread (yêu cầu của OpenCV trên Windows)
 
 
 if __name__ == "__main__":

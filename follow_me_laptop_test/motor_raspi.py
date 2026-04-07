@@ -49,8 +49,8 @@ class RealMotorUART:
         right = max(-100, min(100, int(right)))
         if (left, right) == self._last_cmd:
             return True
-        dir_a = 1 if left < 0 else 0
-        dir_b = 1 if right < 0 else 0
+        dir_a = 0 if left < 0 else 1
+        dir_b = 0 if right < 0 else 1
         frame = build_frame(round(abs(left)/100*255), dir_a, round(abs(right)/100*255), dir_b)
         try:
             self.ser.write(frame)
