@@ -47,14 +47,15 @@ class RealMotorUART:
     def send(self, left: int, right: int) -> bool:
         left  = max(-100, min(100, int(left)))
         right = max(-100, min(100, int(right)))
-        # Đảo chiều: code tính tiến=dương, nhưng motor thực tế lắp ngược
-        left  = -left
-        right = -right
         if (left, right) == self._last_cmd:
             return True
-        dir_a = 1 if left < 0 else 0
-        dir_b = 1 if right < 0 else 0
-        frame = build_frame(round(abs(left)/100*255), dir_a, round(abs(right)/100*255), dir_b)
+        # Kênh A = bánh PHẢI,  Kênh B = bánh TRÁI
+        # Forward: A dir=0 (CW), B dir=1 (CCW) — ngược nhau vì gắn đối xứng
+        dir_a = 1 if right < 0 else 0           # bánh phải → kênh A
+        dir_b = 0 if left  < 0 else 1           # bánh trái → kênh B (đảo dir)
+        speed_a = round(abs(right) / 100 * 255)  # A = phải
+        speed_b = round(abs(left)  / 100 * 255)  # B = trái
+        frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
             self.ser.write(frame)
             ack = self.ser.read(1)
