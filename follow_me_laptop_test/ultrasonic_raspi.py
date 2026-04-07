@@ -127,21 +127,31 @@ def _read_packet(ser: serial.Serial) -> float:
 class _SEN0311Sensor:
     """Wrapper doc 1 cam bien SEN0311 qua UART."""
 
-    def __init__(self, port: str, name: str):
+    def __init__(self, port: str, name: str, required: bool = True):
         self._name = name
+        self._ser  = None
         try:
             self._ser = serial.Serial(port, _BAUD, timeout=_READ_TIMEOUT)
             print(f"[ULTRASONIC] {name} sensor open -> {port}  @{_BAUD} baud")
         except serial.SerialException as e:
-            raise RuntimeError(
-                f"[ULTRASONIC] Khong mo duoc {port} cho cam bien {name}: {e}\n"
-                f"  Kiem tra:\n"
-                f"  1. /boot/config.txt co dtoverlay=uart3 (hoac uart4/uart5)\n"
-                f"  2. sudo reboot sau khi chinh\n"
-                f"  3. ls /dev/ttyAMA*"
-            ) from e
+            if required:
+                raise RuntimeError(
+                    f"[ULTRASONIC] Khong mo duoc {port} cho cam bien {name}: {e}\n"
+                    f"  Kiem tra:\n"
+                    f"  1. /boot/config.txt co dtoverlay=uart3 (hoac uart4/uart5)\n"
+                    f"  2. sudo reboot sau khi chinh\n"
+                    f"  3. ls /dev/ttyAMA*"
+                ) from e
+            else:
+                print(f"[ULTRASONIC] {name} sensor KHONG CO ({port}) -> dung DEFAULT_DISTANCE")
+
+    @property
+    def available(self) -> bool:
+        return self._ser is not None
 
     def read_cm(self) -> float:
+        if self._ser is None:
+            return config.DEFAULT_DISTANCE_CM
         return _read_packet(self._ser)
 
     def close(self):
@@ -169,19 +179,20 @@ class RealUltrasonicArray:
     """
 
     def __init__(self):
-        # PHASE 1: chi cam bien giua
-        self._center = _SEN0311Sensor(UART_CENTER, "CENTER")
+        # Cam bien giua (bat buoc)
+        self._center = _SEN0311Sensor(UART_CENTER, "CENTER", required=True)
 
-        # PHASE 2: bo comment 2 dong duoi khi lap them
-        # self._left  = _SEN0311Sensor(UART_LEFT,   "LEFT")
-        # self._right = _SEN0311Sensor(UART_RIGHT,  "RIGHT")
+        # Cam bien trai + phai (tuy chon — khong co thi dung DEFAULT_DISTANCE)
+        self._left  = _SEN0311Sensor(UART_LEFT,   "LEFT",  required=False)
+        self._right = _SEN0311Sensor(UART_RIGHT,  "RIGHT", required=False)
 
+        _lr = "enabled" if self._left.available and self._right.available else "disabled/partial"
         print(
             f"[ULTRASONIC] RealUltrasonicArray (SEN0311) ready  "
             f"| stop={config.OBSTACLE_STOP_CM:.0f}cm "
             f"slow={config.OBSTACLE_SLOW_CM:.0f}cm "
             f"side={config.SIDE_SAFE_CM:.0f}cm  "
-            f"[CENTER={UART_CENTER} | LEFT/RIGHT=disabled]"
+            f"[CENTER={UART_CENTER} | LEFT/RIGHT={_lr}]"
         )
 
     # ------------------------------------------------------------------ #
@@ -189,18 +200,11 @@ class RealUltrasonicArray:
     # ------------------------------------------------------------------ #
 
     def read(self) -> ObstacleReading:
-        """
-        Doc ca 3 kenh va tra ve ObstacleReading.
-
-        PHASE 1: LEFT va RIGHT = DEFAULT_DISTANCE_CM (khong trigger tranh vat can ben).
-        """
+        """Doc ca 3 kenh va tra ve ObstacleReading."""
         center_cm = self._center.read_cm()
 
-        # PHASE 2: thay 2 dong duoi bang:
-        #   left_cm  = self._left.read_cm()
-        #   right_cm = self._right.read_cm()
-        left_cm  = config.DEFAULT_DISTANCE_CM
-        right_cm = config.DEFAULT_DISTANCE_CM
+        left_cm  = self._left.read_cm()
+        right_cm = self._right.read_cm()
 
         return ObstacleReading(
             left_cm=left_cm,
@@ -219,9 +223,10 @@ class RealUltrasonicArray:
     def cleanup(self):
         """Dong tat ca cong serial. Goi khi thoat chuong trinh."""
         self._center.close()
-        # PHASE 2: bo comment 2 dong duoi
-        # self._left.close()
-        # self._right.close()
+        if self._left.available:
+            self._left.close()
+        if self._right.available:
+            self._right.close()
         print("[ULTRASONIC] Serial ports closed")
 
 

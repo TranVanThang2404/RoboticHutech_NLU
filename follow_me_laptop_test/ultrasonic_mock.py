@@ -212,3 +212,7 @@ class MockUltrasonicArray:
             f"| L={obs.left_cm:.0f}  C={obs.center_cm:.0f}  R={obs.right_cm:.0f} cm"
             f"  [{obs.summary()}]"
         )
+
+    def cleanup(self):
+        """No-op cho mock — tương thích API với RealUltrasonicArray."""
+        pass

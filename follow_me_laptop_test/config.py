@@ -15,11 +15,11 @@ import socket
 # ============================================================
 # "laptop"  → dùng FakeMotorUART + MockUltrasonicArray (test trên laptop)
 # "raspi"   → dùng RealMotorUART (pyserial UART) + RealUltrasonicArray (RPi.GPIO)
-HARDWARE_MODE = "laptop"
+HARDWARE_MODE = "raspi"
 
 # True  → không gọi cv2.imshow / cv2.waitKey (chạy không cần màn hình / SSH)
 # False → hiển thị cửa sổ debug camera (cần display)
-HEADLESS = False
+HEADLESS = True
 
 # ============================================================
 #  CHECKLIST KHI DEPLOY LÊN RASPBERRY PI
@@ -102,7 +102,7 @@ STEERING_DEAD_ZONE = 0.08
 # ============================================================
 BASE_SPEED  = 60          # Tốc độ nền khi đi thẳng (0–100)
 MAX_SPEED   = 100         # Giới hạn tốc độ tối đa
-MIN_SPEED   = 0           # Giới hạn tốc độ tối thiểu
+MIN_SPEED   = -60         # Giới hạn tốc độ tối thiểu (âm = lùi)
 
 # ============================================================
 #  PID — STEERING (lái trái/phải)
@@ -146,6 +146,13 @@ KP = STEER_KP / 100.0   # KP cũ ≈ steer_output/base ≈ 80/100 = 0.80
 # ============================================================
 TARGET_LOST_TIMEOUT  = 2.0   # Giây không thấy người → chuyển TARGET_LOST
 MOTOR_SEND_INTERVAL  = 0.05  # Giây giữa hai lần gửi lệnh (~20 Hz)
+
+# ============================================================
+#  SEARCH SPIN — Xoay tìm người khi TARGET_LOST
+# ============================================================
+SEARCH_SPIN_SPEED    = 45    # Tốc độ xoay tại chỗ khi tìm người (0–100)
+SEARCH_SPIN_DURATION = 6.0   # Xoay tối đa bao lâu (giây) rồi dừng hẳn
+SEARCH_SPIN_DIR      = 1     # 1 = xoay phải (CW), -1 = xoay trái (CCW)
 
 # ============================================================
 #  ULTRASONIC — 3 cảm biến (Trái / Giữa / Phải)

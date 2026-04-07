@@ -104,15 +104,16 @@ def compute_motor(
 
     steer_out = steer_pid.compute(steer_err, dt)       # speed differential
 
-    # ============ Tránh vật cản HEI BÊN (override steering) ============
+    # ============ Tránh vật cản HAI BÊN (override steering) ============
+    abs_base = max(abs(base), 1)
     if obs.left_blocked and not obs.right_blocked:
         # Bên trái bị chặn → buộc rẽ phải (steer_out ≥ SIDE_BIAS)
-        steer_out = max(steer_out, config.OBSTACLE_SIDE_BIAS * base)
+        steer_out = max(steer_out, config.OBSTACLE_SIDE_BIAS * abs_base)
     elif obs.right_blocked and not obs.left_blocked:
         # Bên phải bị chặn → buộc rẽ trái (steer_out ≤ -SIDE_BIAS)
-        steer_out = min(steer_out, -config.OBSTACLE_SIDE_BIAS * base)
+        steer_out = min(steer_out, -config.OBSTACLE_SIDE_BIAS * abs_base)
     elif obs.left_blocked and obs.right_blocked:
-        # Cả hai bị chặn (ẻm hẹp) → đi thẳng + giảm tốc thêm
+        # Cả hai bị chặn (hẻm hẹp) → đi thẳng + giảm tốc thêm
         steer_out = 0.0
         base = max(config.MIN_SPEED, int(base * 0.50))
 
@@ -269,10 +270,18 @@ def draw_overlay(
     n_persons = len(all_bboxes)
 
     # Chú thích hướng di chuyển từ lệnh UART
-    if left > right:
+    if left < 0 and right < 0:
+        direction = "LUI      v"     # cả hai bánh lùi
+    elif left > 0 and right < 0:
+        direction = "XOAY PHAI >>"   # xoay tại chỗ
+    elif left < 0 and right > 0:
+        direction = "<< XOAY TRAI"   # xoay tại chỗ
+    elif left > right:
         direction = "QUEO PHAI ->"   # bánh trái nhanh hơn → xe rẽ phải
     elif left < right:
         direction = "<- QUEO TRAI"   # bánh phải nhanh hơn → xe rẽ trái
+    elif left == 0 and right == 0:
+        direction = "DUNG     ="
     else:
         direction = "DI THANG  ^"    # hai bánh bằng nhau → đi thẳng
 
@@ -321,6 +330,8 @@ def camera_loop():
     if not cap.isOpened():
         print(f"[CAMERA] ERROR: Không mở được camera index {config.CAMERA_INDEX}")
         print("         Hãy thử thay đổi CAMERA_INDEX trong config.py (0, 1, 2 …)")
+        motor.stop()
+        motor.close()
         sys.exit(1)
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  640)
@@ -360,8 +371,9 @@ def camera_loop():
 
     print("[CAMERA] Sẵn sàng! Phím: Q=Thoát  E=Emergency  O=Vật cản  R=Reset\n")
 
-    last_seen   = None
-    last_tx     = 0.0
+    last_seen     = None
+    lost_since    = None          # thời điểm bắt đầu TARGET_LOST (cho spin-search)
+    last_tx       = 0.0
     prev_t      = time.time()   # thời điểm frame trước (tính dt cho PID)
     left, right = 0, 0
     last_sim    = 0.0
@@ -391,6 +403,8 @@ def camera_loop():
             left, right = 0, 0
             motor.send(0, 0)
             state_manager.update_motor(0, 0, last_sim)
+            steer_pid.reset()
+            speed_pid.reset()
             if not config.HEADLESS:
                 frame = draw_overlay(
                     frame, target_bbox, all_bboxes,
@@ -419,6 +433,7 @@ def camera_loop():
             state_manager.complete_registration(ok, msg)
             if ok:
                 last_seen   = None
+                lost_since  = None
                 left, right = 0, 0
                 last_sim    = 0.0
                 target_bbox = None
@@ -465,6 +480,7 @@ def camera_loop():
                     steer_pid, speed_pid, dt,
                 )
                 last_seen    = t_now
+                lost_since   = None
                 state_manager.state = State.FOLLOWING
 
             else:
@@ -475,10 +491,20 @@ def camera_loop():
                     steer_pid.reset(); speed_pid.reset()
                 elif t_now - last_seen > config.TARGET_LOST_TIMEOUT:
                     state_manager.state = State.TARGET_LOST
-                    left, right = 0, 0
                     last_sim    = 0.0
                     target_bbox = None
                     steer_pid.reset(); speed_pid.reset()
+                    # --- Spin-search: xoay tại chỗ tìm người ---
+                    if lost_since is None:
+                        lost_since = t_now
+                    spin_elapsed = t_now - lost_since
+                    if spin_elapsed < config.SEARCH_SPIN_DURATION:
+                        spd = config.SEARCH_SPIN_SPEED
+                        d   = config.SEARCH_SPIN_DIR
+                        left  =  spd * d    # +spd = bánh trái tiến
+                        right = -spd * d    # -spd = bánh phải lùi → xoay tại chỗ
+                    else:
+                        left, right = 0, 0  # hết thời gian xoay → dừng hẳn
                 # else: còn trong grace period → giữ lệnh cuối
 
         # ====================================================
@@ -541,6 +567,7 @@ def camera_loop():
             steer_pid.reset()
             speed_pid.reset()
             last_seen   = None
+            lost_since  = None
             left, right = 0, 0
             last_sim    = 0.0
             target_bbox = None
@@ -551,8 +578,7 @@ def camera_loop():
         cv2.destroyAllWindows()
     motor.stop()
     motor.close()
-    if config.HARDWARE_MODE == "raspi":
-        ultrasonic.cleanup()
+    ultrasonic.cleanup()
     print("\n[CAMERA] Đã thoát.")
 
 

@@ -7,7 +7,8 @@ Binary frame protocol (7 bytes):
   dir   : 0=CW, 1=CCW
   ACK   : STM32 gui 0x06
 
-API ngoai: send(left, right) voi 0-100
+API ngoai: send(left, right) voi -100 den +100
+  Gia tri am = lui (dir=1 CCW), duong = tien (dir=0 CW)
 """
 
 import serial
@@ -34,7 +35,7 @@ def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
 
 
 class RealMotorUART:
-    def __init__(self, port="/dev/ttyAMA0", baudrate=115200, timeout=0.1):
+    def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.1):
         self._port     = port
         self._last_cmd = (-999, -999)
         try:
@@ -44,11 +45,13 @@ class RealMotorUART:
             raise RuntimeError(f"[UART] Khong mo duoc cong {port}: {e}") from e
 
     def send(self, left: int, right: int) -> bool:
-        left  = max(0, min(100, int(left)))
-        right = max(0, min(100, int(right)))
+        left  = max(-100, min(100, int(left)))
+        right = max(-100, min(100, int(right)))
         if (left, right) == self._last_cmd:
             return True
-        frame = build_frame(int(left/100*255), 0, int(right/100*255), 0)
+        dir_a = 1 if left < 0 else 0
+        dir_b = 1 if right < 0 else 0
+        frame = build_frame(round(abs(left)/100*255), dir_a, round(abs(right)/100*255), dir_b)
         try:
             self.ser.write(frame)
             ack = self.ser.read(1)

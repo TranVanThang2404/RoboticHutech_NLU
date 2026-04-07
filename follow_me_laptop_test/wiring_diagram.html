@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<title>Sơ đồ đấu dây - Follow Me Robot</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #1a1a2e;
+    color: #eee;
+    min-height: 100vh;
+    padding: 20px;
+  }
+  h1 { text-align: center; color: #00d4ff; margin-bottom: 5px; font-size: 28px; }
+  h2 { text-align: center; color: #aaa; font-size: 14px; margin-bottom: 30px; font-weight: normal; }
+  .diagram-container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  svg { width: 100%; height: auto; }
+
+  /* Tables */
+  .tables { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; margin-top: 30px; }
+  .table-card {
+    background: #16213e;
+    border-radius: 12px;
+    padding: 18px;
+    border: 1px solid #0f3460;
+    flex: 1; min-width: 300px; max-width: 500px;
+  }
+  .table-card h3 { color: #00d4ff; margin-bottom: 12px; font-size: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: #0f3460; color: #00d4ff; padding: 8px 10px; text-align: left; }
+  td { padding: 7px 10px; border-bottom: 1px solid #1a1a3e; }
+  tr:hover td { background: #1a2744; }
+  .wire-red { color: #ff4444; font-weight: bold; }
+  .wire-black { color: #888; font-weight: bold; }
+  .wire-green { color: #44ff44; font-weight: bold; }
+  .wire-white { color: #ffffff; font-weight: bold; }
+  .wire-yellow { color: #ffdd44; font-weight: bold; }
+  .wire-blue { color: #4488ff; font-weight: bold; }
+
+  .note {
+    background: #0f3460;
+    border-left: 4px solid #e94560;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin-top: 20px;
+    max-width: 1060px;
+    margin-left: auto; margin-right: auto;
+    font-size: 14px; line-height: 1.6;
+  }
+  .note b { color: #e94560; }
+  .note code { background: #1a1a2e; padding: 2px 6px; border-radius: 4px; color: #00d4ff; }
+
+  .config-box {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: 20px;
+    max-width: 1060px;
+    margin-left: auto; margin-right: auto;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 13px;
+    line-height: 1.7;
+    color: #c9d1d9;
+  }
+  .config-box .comment { color: #8b949e; }
+  .config-box .key { color: #ff7b72; }
+  .phase-tag {
+    display: inline-block;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 6px;
+    font-weight: bold;
+  }
+  .phase1 { background: #00d44f33; color: #44ff88; border: 1px solid #44ff88; }
+  .phase2 { background: #ffaa0033; color: #ffcc44; border: 1px solid #ffcc44; }
+</style>
+</head>
+<body>
+
+<h1>🤖 Sơ Đồ Đấu Dây — Follow Me Robot</h1>
+<h2>Raspberry Pi 4B + STM32 Motor Driver + DFRobot SEN0311 Ultrasonic</h2>
+
+<div class="diagram-container">
+<svg viewBox="0 0 1000 620" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <marker id="arrowR" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ff4444"/>
+    </marker>
+    <marker id="arrowG" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#44ff44"/>
+    </marker>
+    <marker id="arrowB" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#4488ff"/>
+    </marker>
+    <marker id="arrowY" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#ffdd44"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1000" height="620" fill="#1a1a2e" rx="12"/>
+
+  <!-- ==================== RASPBERRY PI ==================== -->
+  <rect x="350" y="200" width="300" height="220" rx="14" fill="#16213e" stroke="#00d4ff" stroke-width="2"/>
+  <rect x="350" y="200" width="300" height="36" rx="14" fill="#0f3460"/>
+  <rect x="350" y="220" width="300" height="16" fill="#0f3460"/>
+  <text x="500" y="223" text-anchor="middle" fill="#00d4ff" font-size="16" font-weight="bold">Raspberry Pi 4B</text>
+
+  <!-- GPIO Pin labels on RPi -->
+  <!-- Left side pins -->
+  <text x="365" y="268" fill="#ff6666" font-size="11" font-weight="bold">Pin 2 (5V)</text>
+  <text x="365" y="290" fill="#888" font-size="11" font-weight="bold">Pin 6 (GND)</text>
+  <text x="365" y="312" fill="#66ff66" font-size="11" font-weight="bold">Pin 29 (GPIO5)</text>
+  <text x="365" y="340" fill="#aaa" font-size="10">UART3 RX</text>
+
+  <!-- Right side pins -->
+  <text x="545" y="268" fill="#ffdd44" font-size="11" font-weight="bold">USB Port</text>
+  <text x="545" y="290" fill="#aaa" font-size="10">/dev/ttyACM0</text>
+  <text x="545" y="320" fill="#88aaff" font-size="11">Pin 21 (GPIO9)</text>
+  <text x="545" y="340" fill="#aaa" font-size="10">UART4 RX (P2)</text>
+  <text x="545" y="365" fill="#88aaff" font-size="11">Pin 33 (GPIO13)</text>
+  <text x="545" y="385" fill="#aaa" font-size="10">UART5 RX (P2)</text>
+
+  <!-- Camera -->
+  <text x="420" y="406" fill="#aaa" font-size="10">USB Camera (index 0)</text>
+
+  <!-- ============ ULTRASONIC CENTER (PHASE 1) ============ -->
+  <rect x="80" y="30" width="200" height="100" rx="12" fill="#16213e" stroke="#44ff88" stroke-width="2"/>
+  <rect x="80" y="30" width="200" height="30" rx="12" fill="#0a3020"/>
+  <rect x="80" y="45" width="200" height="15" fill="#0a3020"/>
+  <text x="180" y="52" text-anchor="middle" fill="#44ff88" font-size="13" font-weight="bold">Cảm Biến GIỮA</text>
+  <text x="180" y="52" text-anchor="middle" fill="#44ff88" font-size="13" font-weight="bold">Cảm Biến GIỮA</text>
+  <text x="180" y="72" text-anchor="middle" fill="#aaa" font-size="11">SEN0311 / A02YYUW</text>
+  <text x="180" y="90" text-anchor="middle" fill="#aaa" font-size="10">/dev/ttyAMA3</text>
+  <text x="180" y="108" text-anchor="middle" fill="#44ff88" font-size="10" font-weight="bold">PHASE 1 ✓</text>
+
+  <!-- Wires from Center Ultrasonic to RPi -->
+  <!-- VCC (red) -->
+  <path d="M 280 50 Q 340 50 350 268" stroke="#ff4444" stroke-width="2.5" fill="none" stroke-dasharray="none" marker-end="url(#arrowR)"/>
+  <text x="322" y="120" fill="#ff4444" font-size="10" font-weight="bold" transform="rotate(-60,322,120)">VCC (đỏ)</text>
+
+  <!-- GND (black/gray) -->
+  <path d="M 280 70 Q 350 90 350 290" stroke="#888" stroke-width="2.5" fill="none" marker-end="url(#arrowR)"/>
+  <text x="332" y="165" fill="#888" font-size="10" font-weight="bold" transform="rotate(-55,332,165)">GND (đen)</text>
+
+  <!-- TX → GPIO5 (green) -->
+  <path d="M 280 90 Q 360 130 350 312" stroke="#44ff44" stroke-width="2.5" fill="none" marker-end="url(#arrowG)"/>
+  <text x="340" y="210" fill="#44ff44" font-size="10" font-weight="bold" transform="rotate(-50,340,210)">TX (xanh)</text>
+
+  <!-- ============ ULTRASONIC LEFT (PHASE 2) ============ -->
+  <rect x="80" y="170" width="180" height="80" rx="10" fill="#1a1a2e" stroke="#ffcc44" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="170" y="198" text-anchor="middle" fill="#ffcc44" font-size="12">Cảm Biến TRÁI</text>
+  <text x="170" y="215" text-anchor="middle" fill="#aaa" font-size="10">SEN0311 — /dev/ttyAMA4</text>
+  <text x="170" y="238" text-anchor="middle" fill="#ffcc44" font-size="10">PHASE 2 (chưa dùng)</text>
+
+  <!-- Dashed wire Left → GPIO9 -->
+  <path d="M 260 210 L 350 320" stroke="#ffcc44" stroke-width="1.5" fill="none" stroke-dasharray="6,3"/>
+
+  <!-- ============ ULTRASONIC RIGHT (PHASE 2) ============ -->
+  <rect x="80" y="290" width="180" height="80" rx="10" fill="#1a1a2e" stroke="#ffcc44" stroke-width="1.5" stroke-dasharray="6,4"/>
+  <text x="170" y="318" text-anchor="middle" fill="#ffcc44" font-size="12">Cảm Biến PHẢI</text>
+  <text x="170" y="335" text-anchor="middle" fill="#aaa" font-size="10">SEN0311 — /dev/ttyAMA5</text>
+  <text x="170" y="358" text-anchor="middle" fill="#ffcc44" font-size="10">PHASE 2 (chưa dùng)</text>
+
+  <!-- Dashed wire Right → GPIO13 -->
+  <path d="M 260 330 L 350 365" stroke="#ffcc44" stroke-width="1.5" fill="none" stroke-dasharray="6,3"/>
+
+  <!-- ============ STM32 MOTOR DRIVER ============ -->
+  <rect x="720" y="180" width="220" height="160" rx="12" fill="#16213e" stroke="#e94560" stroke-width="2"/>
+  <rect x="720" y="180" width="220" height="30" rx="12" fill="#3a0f20"/>
+  <rect x="720" y="195" width="220" height="15" fill="#3a0f20"/>
+  <text x="830" y="202" text-anchor="middle" fill="#e94560" font-size="14" font-weight="bold">STM32 Motor Driver</text>
+  <text x="830" y="225" text-anchor="middle" fill="#aaa" font-size="11">USB → /dev/ttyACM0</text>
+  <text x="830" y="245" text-anchor="middle" fill="#aaa" font-size="10">115200 baud</text>
+  <text x="830" y="270" text-anchor="middle" fill="#ddd" font-size="11">Frame: [0xAA] ... [0x55]</text>
+  <text x="830" y="290" text-anchor="middle" fill="#ddd" font-size="10">ACK: 0x06</text>
+  <text x="775" y="320" fill="#ff8888" font-size="11">Motor A (Trái)</text>
+  <text x="875" y="320" fill="#88aaff" font-size="11">Motor B (Phải)</text>
+
+  <!-- USB Wire RPi → STM32 -->
+  <path d="M 650 270 L 720 240" stroke="#ffdd44" stroke-width="3" fill="none" marker-end="url(#arrowY)"/>
+  <rect x="660" y="238" width="50" height="20" rx="4" fill="#1a1a2e" stroke="#ffdd44" stroke-width="1"/>
+  <text x="685" y="252" text-anchor="middle" fill="#ffdd44" font-size="10" font-weight="bold">USB</text>
+
+  <!-- GND wire RPi → STM32 -->
+  <path d="M 650 295 L 720 270" stroke="#888" stroke-width="2" fill="none"/>
+  <text x="678" y="290" fill="#888" font-size="9">GND chung</text>
+
+  <!-- ============ MOTORS ============ -->
+  <!-- Motor Left -->
+  <rect x="700" y="400" width="100" height="70" rx="10" fill="#16213e" stroke="#ff8888" stroke-width="2"/>
+  <text x="750" y="430" text-anchor="middle" fill="#ff8888" font-size="12" font-weight="bold">Motor</text>
+  <text x="750" y="448" text-anchor="middle" fill="#ff8888" font-size="12" font-weight="bold">TRÁI</text>
+  <text x="750" y="462" text-anchor="middle" fill="#aaa" font-size="9">CW/CCW 0-255</text>
+  <line x1="750" y1="340" x2="750" y2="400" stroke="#ff8888" stroke-width="2"/>
+
+  <!-- Motor Right -->
+  <rect x="860" y="400" width="100" height="70" rx="10" fill="#16213e" stroke="#88aaff" stroke-width="2"/>
+  <text x="910" y="430" text-anchor="middle" fill="#88aaff" font-size="12" font-weight="bold">Motor</text>
+  <text x="910" y="448" text-anchor="middle" fill="#88aaff" font-size="12" font-weight="bold">PHẢI</text>
+  <text x="910" y="462" text-anchor="middle" fill="#aaa" font-size="9">CW/CCW 0-255</text>
+  <line x1="910" y1="340" x2="910" y2="400" stroke="#88aaff" stroke-width="2"/>
+
+  <!-- ============ CAMERA ============ -->
+  <rect x="400" y="500" width="200" height="70" rx="12" fill="#16213e" stroke="#a855f7" stroke-width="2"/>
+  <text x="500" y="530" text-anchor="middle" fill="#a855f7" font-size="13" font-weight="bold">📷 USB Camera</text>
+  <text x="500" y="550" text-anchor="middle" fill="#aaa" font-size="11">index 0 — YOLOv8n ONNX</text>
+  <text x="500" y="565" text-anchor="middle" fill="#aaa" font-size="10">Person detect + tracking</text>
+  <line x1="500" y1="420" x2="500" y2="500" stroke="#a855f7" stroke-width="2" stroke-dasharray="4,3"/>
+  <text x="510" y="465" fill="#a855f7" font-size="10">USB</text>
+
+  <!-- ============ LEGEND ============ -->
+  <rect x="20" y="470" width="230" height="140" rx="10" fill="#0f1525" stroke="#333" stroke-width="1"/>
+  <text x="135" y="495" text-anchor="middle" fill="#fff" font-size="13" font-weight="bold">Chú Thích</text>
+
+  <line x1="35" y1="515" x2="75" y2="515" stroke="#44ff88" stroke-width="2.5"/>
+  <text x="85" y="519" fill="#ccc" font-size="11">Phase 1 (đang dùng)</text>
+
+  <line x1="35" y1="538" x2="75" y2="538" stroke="#ffcc44" stroke-width="1.5" stroke-dasharray="6,3"/>
+  <text x="85" y="542" fill="#ccc" font-size="11">Phase 2 (chưa dùng)</text>
+
+  <line x1="35" y1="561" x2="75" y2="561" stroke="#ff4444" stroke-width="2.5"/>
+  <text x="85" y="565" fill="#ff4444" font-size="11">VCC 5V (đỏ)</text>
+
+  <line x1="35" y1="584" x2="75" y2="584" stroke="#888" stroke-width="2.5"/>
+  <text x="85" y="588" fill="#888" font-size="11">GND (đen)</text>
+
+  <!-- ============ TOP VIEW LABEL ============ -->
+  <rect x="350" y="490" width="300" height="0" rx="0" fill="none"/>
+
+</svg>
+</div>
+
+<!-- ============ WIRING TABLES ============ -->
+<div class="tables">
+
+  <div class="table-card">
+    <h3>🔊 Cảm Biến Siêu Âm GIỮA → RPi <span class="phase-tag phase1">PHASE 1</span></h3>
+    <table>
+      <tr><th>Dây SEN0311</th><th>Màu</th><th>RPi Pin</th><th>Ghi chú</th></tr>
+      <tr><td>VCC</td><td class="wire-red">Đỏ</td><td><b>Pin 2</b></td><td>Nguồn 5V</td></tr>
+      <tr><td>GND</td><td class="wire-black">Đen</td><td><b>Pin 6</b></td><td>Mass chung</td></tr>
+      <tr><td>TX</td><td class="wire-green">Xanh</td><td><b>Pin 29</b> (GPIO5)</td><td>UART3 RX ← nhận data</td></tr>
+      <tr><td>RX</td><td class="wire-white">Trắng</td><td>Không nối</td><td>Không cần</td></tr>
+    </table>
+  </div>
+
+  <div class="table-card">
+    <h3>⚡ STM32 Motor Driver → RPi</h3>
+    <table>
+      <tr><th>Kết nối</th><th>RPi</th><th>Ghi chú</th></tr>
+      <tr><td>USB Cable</td><td><b>USB Port</b></td><td>/dev/ttyACM0 @ 115200 baud</td></tr>
+      <tr><td>GND</td><td>GND chung</td><td>Nếu dùng UART trực tiếp</td></tr>
+    </table>
+    <br>
+    <h3>🔊 Cảm Biến TRÁI + PHẢI <span class="phase-tag phase2">PHASE 2</span></h3>
+    <table>
+      <tr><th>Cảm biến</th><th>UART</th><th>TX → RPi RX Pin</th></tr>
+      <tr><td>TRÁI</td><td>/dev/ttyAMA4</td><td><b>Pin 21</b> (GPIO9)</td></tr>
+      <tr><td>PHẢI</td><td>/dev/ttyAMA5</td><td><b>Pin 33</b> (GPIO13)</td></tr>
+    </table>
+  </div>
+
+</div>
+
+<!-- ============ CONFIG ============ -->
+<div class="note">
+  <b>⚠️ Lưu ý quan trọng:</b><br>
+  • SEN0311 dùng UART 3.3V logic → <b>KHÔNG cần voltage divider</b><br>
+  • Phải nối <b>GND chung</b> giữa tất cả thiết bị<br>
+  • Cảm biến đo được: <b>3 cm → 450 cm</b><br>
+  • Motor nhận giá trị <b>-100 đến +100</b> (âm = lùi, dương = tiến)
+</div>
+
+<div class="config-box">
+  <span class="comment"># /boot/config.txt — thêm các dòng sau rồi reboot</span><br><br>
+  <span class="key">dtoverlay=disable-bt</span>     <span class="comment"># Giải phóng ttyAMA0</span><br>
+  <span class="key">dtoverlay=uart3</span>           <span class="comment"># Bật UART3 cho cảm biến GIỮA (Phase 1)</span><br>
+  <span class="comment"># dtoverlay=uart4          # Phase 2: cảm biến TRÁI</span><br>
+  <span class="comment"># dtoverlay=uart5          # Phase 2: cảm biến PHẢI</span><br>
+</div>
+
+<br><br>
+</body>
+</html>
