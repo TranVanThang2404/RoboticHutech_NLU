@@ -519,6 +519,7 @@ def camera_loop():
 
     read_fail_count = 0
     stall_count = 0
+    registration_deadline = None
 
     while True:
         ret, frame = cap.read()
@@ -605,19 +606,42 @@ def camera_loop():
         #  Xử lý yêu cầu đăng ký từ Flask thread
         # ====================================================
         if state_manager.registration_requested:
-            registering = True
+            if not registering:
+                registering = True
+                registration_deadline = t_now + (4.5 if config.USE_GUI else 1.5)
+
             if config.USE_GUI:
-                reg_bbox = tracker.select_registration_target(frame, detector)
-                ok, msg = tracker.register_bbox(frame, reg_bbox)
-                if ok:
-                    saved_path = _save_gui_registration_snapshot(frame, reg_bbox)
-                    if saved_path:
-                        msg = f"{msg} | Da luu: {saved_path}"
+                reg_bbox = tracker.select_registration_target(
+                    frame, detector, center_weight=0.80, area_weight=0.20
+                )
+                if reg_bbox is not None:
+                    ok, msg = tracker.register_bbox(frame, reg_bbox)
+                    if ok:
+                        saved_path = _save_gui_registration_snapshot(frame, reg_bbox)
+                        if saved_path:
+                            msg = f"{msg} | Da luu: {saved_path}"
+                        registering = False
+                        registration_deadline = None
+                        state_manager.complete_registration(ok, msg)
+                    else:
+                        if t_now >= (registration_deadline or t_now):
+                            registering = False
+                            registration_deadline = None
+                            state_manager.complete_registration(False, msg)
+                elif t_now >= (registration_deadline or t_now):
+                    registering = False
+                    registration_deadline = None
+                    state_manager.complete_registration(
+                        False,
+                        "Khong thay nguoi phu hop. Dung vao giua khung hinh, cach camera 1-2m roi bam lai.",
+                    )
             else:
                 ok, msg = tracker.register_from_frame(frame, detector)
-            registering = False
-            state_manager.complete_registration(ok, msg)
-            if ok:
+                registering = False
+                registration_deadline = None
+                state_manager.complete_registration(ok, msg)
+
+            if not state_manager.registration_requested and state_manager.is_registered:
                 last_seen   = None
                 lost_since  = None
                 left, right = 0, 0
@@ -693,8 +717,8 @@ def camera_loop():
         elif not state_manager.is_registered:
             state_manager.state = State.PAIRED_BUT_NO_TARGET
             left, right = 0, 0
-            # Phát hiện người để hiển thị hướng dẫn vị trí đứng (chỉ khi có màn hình)
-            if not config.HEADLESS:
+            # GUI cũng cần hiển thị bbox ứng viên để người dùng đứng đúng vị trí.
+            if not config.HEADLESS or config.USE_GUI:
                 all_bboxes = detector.detect(frame)
 
         else:

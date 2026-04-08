@@ -520,7 +520,13 @@ class TargetTracker:
         """Số snapshot hiện có trong gallery."""
         return len(self._gallery)
 
-    def select_registration_target(self, frame: np.ndarray, detector):
+    def select_registration_target(
+        self,
+        frame: np.ndarray,
+        detector,
+        center_weight: float = 0.55,
+        area_weight: float = 0.45,
+    ):
         """
         Chọn người nổi bật nhất trong frame để đăng ký.
 
@@ -549,7 +555,7 @@ class TargetTracker:
             center_s = 1.0 - dist_n
             area_s = area / frame_area
 
-            score = 0.55 * center_s + 0.45 * area_s
+            score = center_weight * center_s + area_weight * area_s
             if score > best_score:
                 best_score = score
                 best_bbox = bbox
