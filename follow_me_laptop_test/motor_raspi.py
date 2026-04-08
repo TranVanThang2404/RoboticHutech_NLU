@@ -11,6 +11,7 @@ API ngoai: send(left, right) voi -100 den +100
   Gia tri am = lui (dir=1 CCW), duong = tien (dir=0 CW)
 """
 
+import time
 import serial
 import config
 
@@ -39,12 +40,28 @@ class RealMotorUART:
         self._port     = port
         self._last_cmd = (-999, -999)
         self._ack_miss_count = 0
+        self._ack_timeout = float(getattr(config, "MOTOR_ACK_TIMEOUT", 0.030))
+        self._ack_retries = max(1, int(getattr(config, "MOTOR_ACK_RETRIES", 3)))
         try:
             self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
             self.ser.reset_input_buffer()
             print(f"[UART] RealMotorUART connected -> {port} @{baudrate} baud")
         except serial.SerialException as e:
             raise RuntimeError(f"[UART] Khong mo duoc cong {port}: {e}") from e
+
+    def _wait_for_ack(self) -> bool:
+        """Cho ACK 0x06 trong mot timeout ngan de dong bo tung frame."""
+        deadline = time.time() + self._ack_timeout
+        while time.time() < deadline:
+            waiting = getattr(self.ser, "in_waiting", 0)
+            if waiting > 0:
+                ack = self.ser.read(waiting)
+                if bytes([0x06]) in ack:
+                    self._ack_miss_count = 0
+                    return True
+            time.sleep(0.001)
+        self._ack_miss_count += 1
+        return False
 
     def send(self, left: int, right: int) -> bool:
         left  = max(-100, min(100, int(left)))
@@ -72,29 +89,24 @@ class RealMotorUART:
         speed_b = round(abs(left)  / 100 * 255)  # B = trái
         frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
-            self.ser.write(frame)
-            self._last_cmd = (left, right)
-            ok = True
-            if abs(left) >= 20 or abs(right) >= 20 or (left == 0 and right == 0):
-                hex_str = " ".join(f"{b:02x}" for b in frame)
+            hex_str = " ".join(f"{b:02x}" for b in frame)
+            for attempt in range(1, self._ack_retries + 1):
+                self.ser.reset_input_buffer()
+                self.ser.write(frame)
+                if self._wait_for_ack():
+                    self._last_cmd = (left, right)
+                    if abs(left) >= 20 or abs(right) >= 20 or (left == 0 and right == 0):
+                        print(
+                            f"[UART] cmd L={left:>4} R={right:>4} -> "
+                            f"A(speed={speed_a:>3},dir={dir_a}) "
+                            f"B(speed={speed_b:>3},dir={dir_b}) | {hex_str} | ACK"
+                        )
+                    return True
                 print(
-                    f"[UART] cmd L={left:>4} R={right:>4} -> "
-                    f"A(speed={speed_a:>3},dir={dir_a}) "
-                    f"B(speed={speed_b:>3},dir={dir_b}) | {hex_str}"
+                    f"[UART] ACK timeout attempt {attempt}/{self._ack_retries} "
+                    f"for L={left} R={right} | {hex_str}"
                 )
-
-            # Không block chờ ACK; chỉ đọc nếu STM32 đã trả dữ liệu.
-            waiting = getattr(self.ser, "in_waiting", 0)
-            if waiting > 0:
-                ack = self.ser.read(waiting)
-                ok = bytes([0x06]) in ack
-                if ok:
-                    self._ack_miss_count = 0
-            else:
-                self._ack_miss_count += 1
-                if self._ack_miss_count % 50 == 0:
-                    print(f"[UART] ACK miss x{self._ack_miss_count} (non-blocking)")
-            return ok
+            return False
         except serial.SerialException as e:
             print(f"[UART] Loi ghi UART: {e}")
             return False
@@ -103,9 +115,12 @@ class RealMotorUART:
         """Gui thang binary frame (speed 0-255, dir CW/CCW)."""
         frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
-            self.ser.write(frame)
-            ack = self.ser.read(1)
-            return ack == bytes([0x06])
+            for _ in range(self._ack_retries):
+                self.ser.reset_input_buffer()
+                self.ser.write(frame)
+                if self._wait_for_ack():
+                    return True
+            return False
         except serial.SerialException as e:
             print(f"[UART] Loi ghi UART (raw): {e}")
             return False

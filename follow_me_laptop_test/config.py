@@ -13,13 +13,8 @@ import socket
 # ============================================================
 #  DEPLOYMENT MODE
 # ============================================================
-# "laptop"  → dùng FakeMotorUART + MockUltrasonicArray (test trên laptop)
-# "raspi"   → dùng RealMotorUART (pyserial UART) + RealUltrasonicArray (RPi.GPIO)
+# "raspi"   → dùng RealMotorUART (pyserial UART) + RealUltrasonicArray / MockUltrasonicArray
 HARDWARE_MODE = "raspi"
-
-# True  → dùng motor thật (STM32 qua UART)
-# False → dùng motor giả (test camera + sensor mà chưa cắm STM32)
-MOTOR_ENABLED = False
 
 # True  → dùng cảm biến siêu âm thật (SEN0311 qua UART)
 # False → dùng sensor giả (test camera mà chưa nối sensor / chưa bật UART3)
