@@ -25,6 +25,7 @@ import os
 import sys
 import threading
 import time
+from datetime import datetime
 
 # Tắt cảnh báo Qt font (chỉ là warning, không ảnh hưởng)
 os.environ.setdefault("QT_LOGGING_RULES", "qt.qpa.*=false")
@@ -267,6 +268,28 @@ def draw_overlay_lite(frame: np.ndarray, target_bbox, all_bboxes: list,
         cv2.addWeighted(overlay, 0.3, frame, 0.7, 0, frame)
 
     return frame
+
+
+def _save_gui_registration_snapshot(frame: np.ndarray, bbox: tuple | None) -> str | None:
+    """Lưu ảnh người vừa đăng ký trong GUI mode để tiện kiểm tra lại."""
+    if bbox is None:
+        return None
+
+    x1, y1, x2, y2 = bbox
+    x1 = max(0, x1)
+    y1 = max(0, y1)
+    x2 = min(frame.shape[1], x2)
+    y2 = min(frame.shape[0], y2)
+    crop = frame[y1:y2, x1:x2]
+    if crop.size == 0:
+        return None
+
+    save_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "captures")
+    os.makedirs(save_dir, exist_ok=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    save_path = os.path.join(save_dir, f"target_{ts}.jpg")
+    ok = cv2.imwrite(save_path, crop)
+    return save_path if ok else None
 
 
 def draw_overlay(
@@ -583,7 +606,15 @@ def camera_loop():
         # ====================================================
         if state_manager.registration_requested:
             registering = True
-            ok, msg     = tracker.register_from_frame(frame, detector)
+            if config.USE_GUI:
+                reg_bbox = tracker.select_registration_target(frame, detector)
+                ok, msg = tracker.register_bbox(frame, reg_bbox)
+                if ok:
+                    saved_path = _save_gui_registration_snapshot(frame, reg_bbox)
+                    if saved_path:
+                        msg = f"{msg} | Da luu: {saved_path}"
+            else:
+                ok, msg = tracker.register_from_frame(frame, detector)
             registering = False
             state_manager.complete_registration(ok, msg)
             if ok:

@@ -520,6 +520,59 @@ class TargetTracker:
         """Số snapshot hiện có trong gallery."""
         return len(self._gallery)
 
+    def select_registration_target(self, frame: np.ndarray, detector):
+        """
+        Chọn người nổi bật nhất trong frame để đăng ký.
+
+        Returns:
+            bbox hoặc None nếu không phát hiện được người phù hợp.
+        """
+        bboxes = detector.detect(frame)
+        if not bboxes:
+            return None
+
+        h, w = frame.shape[:2]
+        frame_area = w * h
+        best_score = -1.0
+        best_bbox = None
+
+        for bbox in bboxes:
+            x1, y1, x2, y2 = bbox
+            cx = (x1 + x2) / 2.0
+            cy = (y1 + y2) / 2.0
+            area = (x2 - x1) * (y2 - y1)
+
+            dist_n = (
+                ((cx - w / 2) / (w / 2)) ** 2 +
+                ((cy - h / 2) / (h / 2)) ** 2
+            ) ** 0.5 / (2 ** 0.5)
+            center_s = 1.0 - dist_n
+            area_s = area / frame_area
+
+            score = 0.55 * center_s + 0.45 * area_s
+            if score > best_score:
+                best_score = score
+                best_bbox = bbox
+
+        return best_bbox
+
+    def register_bbox(self, frame: np.ndarray, bbox: tuple) -> tuple:
+        """
+        Đăng ký trực tiếp một bbox đã chọn trước.
+
+        Returns:
+            (success: bool, message: str)
+        """
+        if bbox is None:
+            return False, "Không chọn được mục tiêu"
+
+        h, w = frame.shape[:2]
+        frame_area = max(w * h, 1)
+        self._do_register(frame, bbox)
+        x1, y1, x2, y2 = bbox
+        area_pct = int(((x2 - x1) * (y2 - y1)) / frame_area * 100)
+        return True, f"Đã đăng ký mục tiêu (diện tích ≈ {area_pct}% khung hình)"
+
     def register_from_frame(self, frame: np.ndarray, detector) -> tuple:
         """
         Tự động phát hiện và đăng ký người nổi bật nhất trong frame.
@@ -529,40 +582,10 @@ class TargetTracker:
         Returns:
             (success: bool, message: str)
         """
-        bboxes = detector.detect(frame)
-        if not bboxes:
-            return False, "Không phát hiện người nào trong khung hình"
-
-        h, w = frame.shape[:2]
-        frame_area = w * h
-        best_score = -1.0
-        best_bbox  = None
-
-        for bbox in bboxes:
-            x1, y1, x2, y2 = bbox
-            cx   = (x1 + x2) / 2.0
-            cy   = (y1 + y2) / 2.0
-            area = (x2 - x1) * (y2 - y1)
-
-            dist_n   = (
-                ((cx - w / 2) / (w / 2)) ** 2 +
-                ((cy - h / 2) / (h / 2)) ** 2
-            ) ** 0.5 / (2 ** 0.5)
-            center_s = 1.0 - dist_n
-            area_s   = area / frame_area
-
-            score = 0.55 * center_s + 0.45 * area_s
-            if score > best_score:
-                best_score = score
-                best_bbox  = bbox
-
+        best_bbox = self.select_registration_target(frame, detector)
         if best_bbox is None:
-            return False, "Không chọn được mục tiêu"
-
-        self._do_register(frame, best_bbox)
-        x1, y1, x2, y2 = best_bbox
-        area_pct = int(((x2 - x1) * (y2 - y1)) / frame_area * 100)
-        return True, f"Đã đăng ký mục tiêu (diện tích ≈ {area_pct}% khung hình)"
+            return False, "Không phát hiện người nào trong khung hình"
+        return self.register_bbox(frame, best_bbox)
 
     def register_from_gallery(self, descriptors: list, face_enc=None, bboxes: list = None):
         """
