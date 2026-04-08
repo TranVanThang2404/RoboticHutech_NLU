@@ -75,6 +75,13 @@ class RealMotorUART:
             self.ser.write(frame)
             self._last_cmd = (left, right)
             ok = True
+            if abs(left) >= 20 or abs(right) >= 20 or (left == 0 and right == 0):
+                hex_str = " ".join(f"{b:02x}" for b in frame)
+                print(
+                    f"[UART] cmd L={left:>4} R={right:>4} -> "
+                    f"A(speed={speed_a:>3},dir={dir_a}) "
+                    f"B(speed={speed_b:>3},dir={dir_b}) | {hex_str}"
+                )
 
             # Không block chờ ACK; chỉ đọc nếu STM32 đã trả dữ liệu.
             waiting = getattr(self.ser, "in_waiting", 0)

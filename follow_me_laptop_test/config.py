@@ -178,6 +178,7 @@ MOTOR_SEND_INTERVAL  = 0.05  # Giây giữa hai lần gửi lệnh (~20 Hz)
 MOTOR_CMD_DEADBAND   = 0     # generic/laptop: không deadband
 MOTOR_MAX_DELTA_PER_SEND = 100  # generic/laptop: gần như không giới hạn ramp
 CAMERA_STALL_TIMEOUT = 1.0      # generic/laptop: watchdog lỏng
+CAMERA_STALL_MAX_CONSECUTIVE = 2  # chỉ fail-safe khi bị chậm liên tiếp nhiều vòng
 CAMERA_READ_FAIL_LIMIT = 1      # generic/laptop: lỗi là dừng luôn như hiện tại
 MOTOR_REVERSE_BRAKE_THRESHOLD = 0  # generic/laptop: không chèn pha hãm trước khi đảo chiều
 
@@ -239,7 +240,10 @@ if HARDWARE_MODE == "raspi":
     MOTOR_SEND_INTERVAL = 0.08
     MOTOR_CMD_DEADBAND = 6
     MOTOR_MAX_DELTA_PER_SEND = 12
-    CAMERA_STALL_TIMEOUT = 0.35
+    # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
+    # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
+    CAMERA_STALL_TIMEOUT = 0.80
+    CAMERA_STALL_MAX_CONSECUTIVE = 3
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
 

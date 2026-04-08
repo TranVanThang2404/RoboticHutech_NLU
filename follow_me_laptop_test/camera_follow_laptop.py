@@ -429,6 +429,11 @@ def camera_loop():
 
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  config.CAMERA_WIDTH)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.CAMERA_HEIGHT)
+    try:
+        # Giảm frame tồn trong buffer để vòng lặp bám frame mới hơn.
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    except Exception:
+        pass
     actual_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     actual_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     print(f"[CAMERA] Camera sẵn sàng  {actual_w}x{actual_h}")
@@ -490,6 +495,7 @@ def camera_loop():
     print(f"[CAMERA] Detect mỗi {_detect_every} frame (skip-frame)")
 
     read_fail_count = 0
+    stall_count = 0
 
     while True:
         ret, frame = cap.read()
@@ -517,6 +523,13 @@ def camera_loop():
 
         # Watchdog: nếu camera/detector khựng quá lâu thì dừng fail-safe.
         if loop_gap > config.CAMERA_STALL_TIMEOUT:
+            stall_count += 1
+            print(
+                f"[SAFETY] Camera loop slow {loop_gap:.3f}s "
+                f"({stall_count}/{config.CAMERA_STALL_MAX_CONSECUTIVE})"
+            )
+            if stall_count < config.CAMERA_STALL_MAX_CONSECUTIVE:
+                continue
             print(f"[SAFETY] Camera loop stalled {loop_gap:.3f}s -> motor stop")
             left = right = 0
             cmd_left = cmd_right = 0
@@ -525,6 +538,7 @@ def camera_loop():
             steer_pid.reset()
             speed_pid.reset()
             continue
+        stall_count = 0
 
         # ====================================================
         #  EMERGENCY STOP — ưu tiên tuyệt đối, kiểm tra TRƯỚC HẾT

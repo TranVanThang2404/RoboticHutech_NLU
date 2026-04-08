@@ -65,10 +65,12 @@ class FakeMotorUART:
         right = max(-100, min(100, int(right)))
 
         if (left, right) != self._last_command:
-            dir_a   = 1 if left < 0 else 0
-            dir_b   = 1 if right < 0 else 0
-            speed_a = round(abs(left)  / 100 * 255)
-            speed_b = round(abs(right) / 100 * 255)
+            # Đồng bộ 100% với motor_raspi.py:
+            # Kênh A = bánh phải, kênh B = bánh trái, và bánh trái đảo dir vì gắn đối xứng.
+            dir_a   = 1 if right < 0 else 0
+            dir_b   = 0 if left  < 0 else 1
+            speed_a = round(abs(right) / 100 * 255)
+            speed_b = round(abs(left)  / 100 * 255)
             frame   = _build_frame(speed_a, dir_a, speed_b, dir_b)
             hex_str = " ".join(f"{b:02x}" for b in frame)
 
