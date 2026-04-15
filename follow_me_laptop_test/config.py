@@ -50,9 +50,9 @@ USE_GUI = True
 #  CAMERA
 # ============================================================
 CAMERA_INDEX = 0          # 0 = webcam tích hợp | 1 = USB camera đầu tiên
-CAMERA_WIDTH  = 720       # độ phân giải capture (320 để RPi nhanh hơn, 640 nếu laptop mạnh)
+CAMERA_WIDTH  = 720
 CAMERA_HEIGHT = 480
-DETECT_EVERY_N = 3        # chạy detector mỗi N frame (1=mọi frame, 3=nhanh 3x, giữ lại bbox cũ)
+DETECT_EVERY_N = 2        # 3→2: detect thường xuyên hơn, bớt dùng bbox cũ
 
 #  PERSON DETECTION
 # ============================================================
@@ -227,7 +227,7 @@ SAFE_DISTANCE_CM    = OBSTACLE_STOP_CM
 # ============================================================
 # Chỉ áp dụng các tinh chỉnh "xe thật" khi chạy trên Raspberry Pi.
 if HARDWARE_MODE == "raspi":
-    DETECT_EVERY_N = 4
+    DETECT_EVERY_N = 2
     DETECTOR_INPUT_SIZE = 320
     MC_ENABLE_FACE_ENCODING = True
     MC_SNAPSHOT_JPEG_QUALITY = 60
@@ -235,21 +235,21 @@ if HARDWARE_MODE == "raspi":
     BASE_SPEED = 0
     BBOX_HOLD_ZONE = 0.03
     STEERING_DEAD_ZONE = 0.10      # 0.18→0.10: bỏ qua ít hơn, phản ứng sớm hơn
-    STEER_KP = 40.0                # 35→40: phản ứng nhanh hơn
+    STEER_KP = 30.0                # 40→30: bớt phản ứng quá mạnh gây xoay vòng
     STEER_KI = 2.0
     STEER_KD = 5.0
-    STEER_OUTPUT_LIMIT = 50.0      # 45→50: cho phép đầu ra PID lớn hơn
+    STEER_OUTPUT_LIMIT = 50.0
     STEER_DERIV_ALPHA = 0.10
-    STEER_LOW_SPEED_CUTOFF = 0     # 8→0: KHÔNG giảm steering khi base thấp
-    STEER_LOW_SPEED_ERR = 0.0      # tắt hẳn limiter này
-    STEER_STRAIGHT_LOCK_ERR = 0.06 # 0.14→0.06: chỉ lock thẳng khi rất gần tâm
-    STEER_MAX_DIFF_RATIO = 3.0     # 0.50→3.0: cho phép chênh lệch lớn (vd base=16 → max_diff=48)
-    STEER_APPROACH_SCALE = 0.75    # 0.50→0.75: bớt giảm lái khi tiến tới
-    STEER_CENTER_PRIORITY_ERR = 0.15  # 0.28→0.15: chỉ ưu tiên thẳng khi rất gần tâm
+    STEER_LOW_SPEED_CUTOFF = 0
+    STEER_LOW_SPEED_ERR = 0.0
+    STEER_STRAIGHT_LOCK_ERR = 0.06
+    STEER_MAX_DIFF_RATIO = 0.75    # 3.0→0.75: buộc 2 bánh cùng tiến, cua vòng cung thay vì xoay
+    STEER_APPROACH_SCALE = 0.60    # 0.75→0.60
+    STEER_CENTER_PRIORITY_ERR = 0.15
 
-    MOTOR_SEND_INTERVAL = 0.08
-    MOTOR_CMD_DEADBAND = 4         # 6→4: nhạy hơn với thay đổi nhỏ
-    MOTOR_MAX_DELTA_PER_SEND = 25  # 12→25: phản ứng nhanh hơn 2x
+    MOTOR_SEND_INTERVAL = 0.06
+    MOTOR_CMD_DEADBAND = 3         # 4→3: nhạy hơn
+    MOTOR_MAX_DELTA_PER_SEND = 50  # 25→50: ramp nhanh gấp đôi
     # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
     # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
     CAMERA_STALL_TIMEOUT = 1.20
@@ -257,7 +257,7 @@ if HARDWARE_MODE == "raspi":
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
     SPEED_OUTPUT_LIMIT = 18.0
-    FOLLOW_MIN_SPEED = 18          # 16→18: base tối thiểu cao hơn chút
+    FOLLOW_MIN_SPEED = 24          # 18→24: base cao hơn → max_diff=18 → quẹo rõ mà vẫn cua cung
     FOLLOW_MIN_ERR = 0.02
     FOLLOW_FORCE_APPROACH_RATIO = 0.50
     MOTOR_MIN_EFFECTIVE_SPEED = 12 # 20→12: không ép bánh yếu lên cao, giữ chênh lệch quẹo
