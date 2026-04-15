@@ -35,6 +35,17 @@ def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
     return bytes([FRAME_SOF]) + payload + bytes([calc_crc(payload), FRAME_EOF])
 
 
+def _wheel_to_channel_dir(wheel: str, value: int) -> tuple[int, int]:
+    """Map lenh banh trai/phai sang speed+dir phu hop voi cuc tinh tung kenh."""
+    value = max(-100, min(100, int(value)))
+    speed = round(abs(value) / 100 * 255)
+    if wheel == "right":
+        direction = 1 if value < 0 else 0
+    else:
+        direction = 0 if value < 0 else 1
+    return speed, direction
+
+
 def _apply_trim(value: int, trim: float) -> int:
     """Bù sai số cơ khí từng bánh, giữ nguyên dấu tiến/lùi."""
     if value == 0:
@@ -151,12 +162,13 @@ class RealMotorUART:
 
         if (left, right) == self._last_cmd:
             return True
-        # Kênh A = bánh PHẢI,  Kênh B = bánh TRÁI
-        # Forward: A dir=0 (CW), B dir=1 (CCW) — ngược nhau vì gắn đối xứng
-        dir_a = 1 if right < 0 else 0           # bánh phải → kênh A
-        dir_b = 0 if left  < 0 else 1           # bánh trái → kênh B (đảo dir)
-        speed_a = round(abs(right) / 100 * 255)  # A = phải
-        speed_b = round(abs(left)  / 100 * 255)  # B = trái
+        # Mapping kenh A/B co the dao neu phan cung dang noi nguoc trai/phai.
+        if getattr(config, "MOTOR_SWAP_LEFT_RIGHT", False):
+            speed_a, dir_a = _wheel_to_channel_dir("left", left)
+            speed_b, dir_b = _wheel_to_channel_dir("right", right)
+        else:
+            speed_a, dir_a = _wheel_to_channel_dir("right", right)
+            speed_b, dir_b = _wheel_to_channel_dir("left", left)
         frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
             hex_str = " ".join(f"{b:02x}" for b in frame)

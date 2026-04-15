@@ -114,6 +114,7 @@ WHEEL_FORWARD_BOOST_LEFT = 10   # cộng thêm lực cố định cho bánh trá
 WHEEL_FORWARD_BOOST_RIGHT = 0   # bánh phải giữ nguyên
 STEER_RIGHT_LEFT_BOOST = 8      # khi cần quẹo phải, cộng thêm lực cho bánh trái
 STEER_LEFT_RIGHT_REDUCE = 4     # khi cần quẹo trái, giảm nhẹ bánh phải để tránh kéo trái quá mức
+MOTOR_SWAP_LEFT_RIGHT = True    # phần cứng thực tế đang phản ứng như bị đảo trái/phải
 
 # ============================================================
 #  MOTOR CONTROL
