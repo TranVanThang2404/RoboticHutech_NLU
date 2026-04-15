@@ -113,7 +113,7 @@ def compute_motor(
     elif obs.left_blocked and obs.right_blocked:
         # Cả hai bị chặn (hẻm hẹp) → đi thẳng + giảm tốc thêm
         steer_out = 0.0
-        base = max(config.MIN_SPEED, int(base * 0.50))
+        base = max(min_speed, int(base * 0.50))
 
     # Khi đang FOLLOWING bình thường, giới hạn chênh lệch hai bánh theo base speed
     # để ưu tiên cua vòng cung thay vì một bánh tiến một bánh lùi.

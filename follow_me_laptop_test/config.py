@@ -16,7 +16,7 @@ HARDWARE_MODE = "raspi"
 
 # True  → dùng cảm biến siêu âm thật (SEN0311 qua UART)
 # False → dùng sensor giả (test camera mà chưa nối sensor / chưa bật UART3)
-SENSOR_ENABLED = False
+SENSOR_ENABLED = True
 
 # True  → không gọi cv2.imshow / cv2.waitKey (chạy không cần màn hình / SSH)
 # False → hiển thị cửa sổ debug camera (cần display)
@@ -82,7 +82,7 @@ FACE_TOLERANCE   = 0.50     # Mặc định face_recognition là 0.60
 # ============================================================
 # Cosine similarity tối thiểu để chấp nhận là đúng người đã đăng ký.
 # Tăng lên nếu bị nhầm người, giảm xuống nếu bị mất theo quá sớm.
-SIMILARITY_THRESHOLD = 0.40
+SIMILARITY_THRESHOLD = 0.52
 
 # ---- Multi-template gallery ----
 # Lưu N snapshot descriptor tại các thời điểm khác nhau để thích nghi
@@ -90,8 +90,10 @@ SIMILARITY_THRESHOLD = 0.40
 # Similarity cuối = max(sim với từng template trong gallery).
 GALLERY_SIZE            = 6     # số snapshot tối đa (tăng = bộ nhớ nhiều hơn, thích nghi tốt hơn)
 GALLERY_UPDATE_INTERVAL = 4.0   # giây tối thiểu giữa 2 lần thêm snapshot mới
-GALLERY_MIN_SIM         = 0.55  # chỉ thêm snapshot khi similarity ≥ ngưỡng này
+GALLERY_MIN_SIM         = 0.68  # chỉ thêm snapshot khi similarity ≥ ngưỡng này
                                  # (tránh lưu frame nhiễu hoặc người khác vào gallery)
+TRACK_POS_BONUS_MAX     = 0.08  # bonus vị trí nhỏ để bám mượt nhưng không lấn át nhận diện
+TRACK_AMBIGUOUS_MARGIN  = 0.04  # nếu 2 ứng viên quá sát điểm nhau thì bỏ qua frame đó
 
 # Bbox area / frame area:
 #   > BBOX_TOO_CLOSE_RATIO → người quá gần → giảm tốc
@@ -141,8 +143,8 @@ STEER_LOW_SPEED_ERR    = 0.0
 # BBOX_TARGET_RATIO: tỷ lệ bbox/frame tại khoảng cách follow lý tưởng
 #   0.10 ≈ người ở ~1.5–2 m  (camera laptop góc rộng)
 #   0.15 ≈ người ở ~1–1.5 m
-BBOX_TARGET_RATIO      =  0.12  # tỷ lệ bbox/frame mục tiêu
-BBOX_HOLD_ZONE         =  0.000 # generic/laptop: không hold, raspi sẽ override
+BBOX_TARGET_RATIO      =  0.42  # bám rất gần người; cảm biến trước sẽ chặn ở vùng 5-10 cm
+BBOX_HOLD_ZONE         =  0.03  # vùng giữ để xe đứng yên hơn khi đã áp sát
 
 SPEED_KP               =  60.0  # gain tỉ lệ (hạ từ 100 → 60, bớt giật tiến/lùi)
 SPEED_KI               =   2.0  # gain tích phân (hạ từ 5 → 2, tránh tích lũy sai)
@@ -184,12 +186,12 @@ SEARCH_SPIN_DIR      = 1     # 1 = xoay phải (CW), -1 = xoay trái (CCW)
 #   OBSTACLE_STOP_CM : xe DỪNG hoàn toàn (vùng nguy hiểm tức thời)
 #   OBSTACLE_SLOW_CM : xe BẮT ĐẦU GIẢM TỐC (vùng cảnh báo sớm)
 # Tốc độ scale tuyến tính từ 100% (tại SLOW) → 30% (sát STOP)
-OBSTACLE_STOP_CM    = 20.0   # cm — dừng cứng (người đi ngang, tường gần)
-OBSTACLE_SLOW_CM    = 60.0   # cm — bắt đầu giảm tốc
+OBSTACLE_STOP_CM    =  5.0   # cm — dừng cứng, áp sát tối đa
+OBSTACLE_SLOW_CM    = 10.0   # cm — vào vùng 5-10 cm thì bò chậm rồi dừng
 
 # --- Cảm biến TRÁI / PHẢI (hai bên sườn) ---
 # Khi một bên < SIDE_SAFE_CM → lệch lái sang bên kia để thoát
-SIDE_SAFE_CM        = 25.0   # cm — ngưỡng kích hoạt tránh tường/vật cản bên
+SIDE_SAFE_CM        = 10.0   # cm — cho phép đi sát hơn, chỉ né khi thật gần
 
 # Mức lệch lái cưỡng bức khi một bên bị chặn (0.0–1.0 normalized error)
 #   0.40 = lệch vừa (tránh tường nhẹ)
@@ -210,11 +212,11 @@ SAFE_DISTANCE_CM    = OBSTACLE_STOP_CM
 if HARDWARE_MODE == "raspi":
     DETECT_EVERY_N = 4
     DETECTOR_INPUT_SIZE = 320
-    MC_ENABLE_FACE_ENCODING = False
+    MC_ENABLE_FACE_ENCODING = True
     MC_SNAPSHOT_JPEG_QUALITY = 60
 
     BASE_SPEED = 0
-    BBOX_HOLD_ZONE = 0.015
+    BBOX_HOLD_ZONE = 0.03
     STEERING_DEAD_ZONE = 0.12
     STEER_KP = 38.0
     STEER_KI = 2.0

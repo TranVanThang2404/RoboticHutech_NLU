@@ -508,6 +508,8 @@ class TargetTracker:
         self._last_gallery_update = 0.0   # timestamp lần cuối thêm snapshot
         self._face_verifier       = FaceVerifier()
         self._face_encoding       = None
+        self._pos_bonus_max       = float(getattr(config, "TRACK_POS_BONUS_MAX", 0.12))
+        self._ambiguous_margin    = float(getattr(config, "TRACK_AMBIGUOUS_MARGIN", 0.0))
 
     # ---- Public API -------------------------------------------------
 
@@ -649,6 +651,7 @@ class TargetTracker:
             return None, []
 
         best_total = -1.0
+        second_total = -1.0
         best_bbox  = None
         best_desc  = None   # descriptor của winner — tránh tính lại lần 2
         best_sim   = 0.0    # gallery_sim thuần của winner (không có pos_bonus)
@@ -667,14 +670,17 @@ class TargetTracker:
                 cy   = (y1 + y2) / 2.0
                 dist = ((cx - self._last_center[0]) ** 2 +
                         (cy - self._last_center[1]) ** 2) ** 0.5
-                pos_bonus = max(0.0, (1.0 - dist / 250.0)) * 0.12
+                pos_bonus = max(0.0, (1.0 - dist / 250.0)) * self._pos_bonus_max
 
             total = gallery_sim + pos_bonus
             if total > best_total:
+                second_total = best_total
                 best_total = total
                 best_bbox  = bbox
                 best_desc  = desc        # cache — không cần tính lại sau vòng lặp
                 best_sim   = gallery_sim # similarity thuần (không có bonus)
+            elif total > second_total:
+                second_total = total
 
         if best_bbox is None:
             return None, bboxes
@@ -683,6 +689,8 @@ class TargetTracker:
         raw_desc = best_desc
         raw_sim  = best_sim
         if raw_sim < self._threshold:
+            return None, bboxes
+        if second_total >= 0.0 and best_total - second_total < self._ambiguous_margin:
             return None, bboxes
 
         # ---- Cập nhật tracker state ----
