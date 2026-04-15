@@ -106,6 +106,8 @@ BBOX_TOO_FAR_RATIO   = 0.03
 STEERING_DEAD_ZONE = 0.08
 STEER_STRAIGHT_LOCK_ERR = 0.05  # nếu mục tiêu gần tâm hơn mức này thì ép đi thẳng
 STEER_MAX_DIFF_RATIO = 0.35     # chênh lệch tối đa giữa 2 bánh khi đang FOLLOWING tiến tới
+STEER_APPROACH_SCALE = 0.55     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
+STEER_CENTER_PRIORITY_ERR = 0.22  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
 WHEEL_TRIM_LEFT = 1.00          # bù sai số cơ khí bánh trái
 WHEEL_TRIM_RIGHT = 1.00         # bù sai số cơ khí bánh phải
 
@@ -226,16 +228,18 @@ if HARDWARE_MODE == "raspi":
 
     BASE_SPEED = 0
     BBOX_HOLD_ZONE = 0.03
-    STEERING_DEAD_ZONE = 0.14
-    STEER_KP = 30.0
+    STEERING_DEAD_ZONE = 0.18
+    STEER_KP = 18.0
     STEER_KI = 2.0
-    STEER_KD = 6.0
-    STEER_OUTPUT_LIMIT = 38.0
+    STEER_KD = 3.0
+    STEER_OUTPUT_LIMIT = 24.0
     STEER_DERIV_ALPHA = 0.10
     STEER_LOW_SPEED_CUTOFF = 8
     STEER_LOW_SPEED_ERR = 0.20
-    STEER_STRAIGHT_LOCK_ERR = 0.08
-    STEER_MAX_DIFF_RATIO = 0.18
+    STEER_STRAIGHT_LOCK_ERR = 0.14
+    STEER_MAX_DIFF_RATIO = 0.10
+    STEER_APPROACH_SCALE = 0.35
+    STEER_CENTER_PRIORITY_ERR = 0.28
 
     MOTOR_SEND_INTERVAL = 0.08
     MOTOR_CMD_DEADBAND = 6

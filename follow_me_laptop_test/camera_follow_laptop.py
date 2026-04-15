@@ -115,6 +115,14 @@ def compute_motor(
     else:
         steer_out = steer_pid.compute(steer_err, dt)       # speed differential
 
+    # Khi robot vẫn còn đang tiến tới để rút ngắn khoảng cách, ưu tiên đi thẳng.
+    # Chỉ bẻ lái mạnh khi mục tiêu lệch tâm rõ ràng; còn lại giữ 2 bánh gần bằng nhau.
+    if (base > 0 and
+            bbox_area_ratio < config.BBOX_TARGET_RATIO and
+            not obs.left_blocked and not obs.right_blocked and
+            abs(steer_err) < float(getattr(config, "STEER_CENTER_PRIORITY_ERR", 0.0))):
+        steer_out *= float(getattr(config, "STEER_APPROACH_SCALE", 1.0))
+
     # Ưu tiên cua mượt: khi xe đang gần như đứng yên/tiến rất chậm thì
     # không cho steering đủ lớn để biến thành quay tại chỗ liên tục.
     if abs(base) < config.STEER_LOW_SPEED_CUTOFF:
