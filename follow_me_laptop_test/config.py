@@ -147,8 +147,8 @@ STEER_LOW_SPEED_ERR    = 0.0
 # BBOX_TARGET_RATIO: tỷ lệ bbox/frame tại khoảng cách follow lý tưởng
 #   0.10 ≈ người ở ~1.5–2 m  (camera laptop góc rộng)
 #   0.15 ≈ người ở ~1–1.5 m
-BBOX_TARGET_RATIO      =  0.30  # đứng gần màn hình vẫn bám được, ít bị crop và mất target hơn
-BBOX_HOLD_ZONE         =  0.04  # vùng giữ rộng hơn để xe đỡ nhấp khi người đứng gần
+BBOX_TARGET_RATIO      =  0.18  # mục tiêu xa hơn mức đăng ký hiện tại; phù hợp dừng khoảng ~15 cm
+BBOX_HOLD_ZONE         =  0.03  # vẫn có vùng giữ nhưng không quá rộng để xe còn chịu tiến
 
 SPEED_KP               =  60.0  # gain tỉ lệ (hạ từ 100 → 60, bớt giật tiến/lùi)
 SPEED_KI               =   2.0  # gain tích phân (hạ từ 5 → 2, tránh tích lũy sai)
@@ -156,8 +156,8 @@ SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
 SPEED_OUTPUT_LIMIT     =  24.0  # hãm tốc độ tiếp cận gần để detector ổn định hơn
 SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh hơn (0.10 = rất mượt, bớt noise bbox)
-FOLLOW_MIN_SPEED       =  12     # có target và còn xa hơn mong muốn thì vẫn bò tới tối thiểu
-FOLLOW_MIN_ERR         =  0.05   # chỉ ép tốc độ tối thiểu khi còn thiếu khoảng cách rõ ràng
+FOLLOW_MIN_SPEED       =  16     # có target và còn xa hơn mong muốn thì vẫn bò tới tối thiểu
+FOLLOW_MIN_ERR         =  0.03   # thiếu nhẹ khoảng cách là đã bắt đầu bò tới
 
 # Backward-compat alias (không xóa để không phá code cũ nếu có)
 KP = STEER_KP / 100.0   # KP cũ ≈ steer_output/base ≈ 80/100 = 0.80
@@ -192,8 +192,8 @@ SEARCH_SPIN_DIR      = 1     # 1 = xoay phải (CW), -1 = xoay trái (CCW)
 #   OBSTACLE_STOP_CM : xe DỪNG hoàn toàn (vùng nguy hiểm tức thời)
 #   OBSTACLE_SLOW_CM : xe BẮT ĐẦU GIẢM TỐC (vùng cảnh báo sớm)
 # Tốc độ scale tuyến tính từ 100% (tại SLOW) → 30% (sát STOP)
-OBSTACLE_STOP_CM    = 12.0   # cm — an toàn hơn khi đứng gần màn hình
-OBSTACLE_SLOW_CM    = 20.0   # cm — giảm tốc sớm hơn để tránh overshoot
+OBSTACLE_STOP_CM    = 15.0   # cm — dừng ở khoảng cách mục tiêu an toàn
+OBSTACLE_SLOW_CM    = 25.0   # cm — giảm tốc trước khi vào vùng 15 cm
 
 # --- Cảm biến TRÁI / PHẢI (hai bên sườn) ---
 # Khi một bên < SIDE_SAFE_CM → lệch lái sang bên kia để thoát
@@ -222,7 +222,7 @@ if HARDWARE_MODE == "raspi":
     MC_SNAPSHOT_JPEG_QUALITY = 60
 
     BASE_SPEED = 0
-    BBOX_HOLD_ZONE = 0.04
+    BBOX_HOLD_ZONE = 0.03
     STEERING_DEAD_ZONE = 0.14
     STEER_KP = 30.0
     STEER_KI = 2.0
@@ -243,6 +243,6 @@ if HARDWARE_MODE == "raspi":
     CAMERA_STALL_MAX_CONSECUTIVE = 3
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
-    SPEED_OUTPUT_LIMIT = 20.0
-    FOLLOW_MIN_SPEED = 14
-    FOLLOW_MIN_ERR = 0.04
+    SPEED_OUTPUT_LIMIT = 24.0
+    FOLLOW_MIN_SPEED = 18
+    FOLLOW_MIN_ERR = 0.02
