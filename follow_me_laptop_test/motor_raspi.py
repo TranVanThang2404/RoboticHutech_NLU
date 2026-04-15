@@ -108,6 +108,8 @@ class RealMotorUART:
         self._ack_miss_count = 0
         self._ack_timeout = float(getattr(config, "MOTOR_ACK_TIMEOUT", 0.030))
         self._ack_retries = max(1, int(getattr(config, "MOTOR_ACK_RETRIES", 3)))
+        self._consecutive_failures = 0
+        self._backoff_until = 0.0  # timestamp: bỏ qua gửi cho đến thời điểm này
         try:
             self.ser = serial.Serial(port, baudrate=baudrate, timeout=timeout)
             self.ser.reset_input_buffer()
@@ -160,6 +162,12 @@ class RealMotorUART:
 
         if (left, right) == self._last_cmd:
             return True
+
+        # Backoff: khi STM32 mất kết nối liên tục, giảm tần suất retry
+        now = time.time()
+        if self._consecutive_failures >= 3 and now < self._backoff_until:
+            return False  # bỏ qua, chưa đến lúc thử lại
+
         # Mapping kenh A/B co the dao neu phan cung dang noi nguoc trai/phai.
         # Quan trong: cuc tinh tien/lui van phai theo KENH A/B, khong theo ten banh.
         if getattr(config, "MOTOR_SWAP_LEFT_RIGHT", False):
@@ -180,6 +188,10 @@ class RealMotorUART:
                 self.ser.write(frame)
                 if self._wait_for_ack():
                     self._last_cmd = (left, right)
+                    if self._consecutive_failures > 0:
+                        print(f"[UART] STM32 recovered after {self._consecutive_failures} failures")
+                    self._consecutive_failures = 0
+                    self._backoff_until = 0.0
                     log_min = int(getattr(config, "MOTOR_LOG_MIN_ABS", 20))
                     if abs(left) >= log_min or abs(right) >= log_min or (left == 0 and right == 0):
                         print(
@@ -191,6 +203,17 @@ class RealMotorUART:
                 print(
                     f"[UART] ACK timeout attempt {attempt}/{self._ack_retries} "
                     f"for L={left} R={right} | {hex_str}"
+                )
+            # Tất cả retry đều thất bại
+            self._consecutive_failures += 1
+            # Backoff tăng dần: 1s → 2s → 3s, tối đa 5s
+            backoff_sec = min(self._consecutive_failures, 5)
+            self._backoff_until = time.time() + backoff_sec
+            if self._consecutive_failures <= 3 or self._consecutive_failures % 10 == 0:
+                print(
+                    f"[UART] STM32 not responding ({self._consecutive_failures} consecutive failures). "
+                    f"Check: pin/nguồn STM32, dây UART, reset board. "
+                    f"Backoff {backoff_sec}s"
                 )
             return False
         except serial.SerialException as e:
@@ -212,6 +235,7 @@ class RealMotorUART:
             return False
 
     def stop(self):
+        self._backoff_until = 0.0  # cho phép gửi stop ngay lập tức
         self.send(0, 0)
         self._last_cmd = (-999, -999)
         self._ack_miss_count = 0

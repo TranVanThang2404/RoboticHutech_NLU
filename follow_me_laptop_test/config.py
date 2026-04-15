@@ -28,21 +28,20 @@ USE_GUI = True
 # ============================================================
 #  CHECKLIST KHI DEPLOY LÊN RASPBERRY PI
 # ============================================================
-#  1. HARDWARE_MODE = "raspi"      ← đổi "laptop" → "raspi"
-#  2. HEADLESS      = True         ← True nếu chạy qua SSH / không có màn hình
-#  3. CAMERA_INDEX  = 0            ← USB webcam giữ 0; CSI Pi Camera = cũng thử 0
+#  1. HEADLESS      = True         ← True nếu chạy qua SSH / không có màn hình
+#  2. CAMERA_INDEX  = 0            ← USB webcam giữ 0; CSI Pi Camera = cũng thử 0
 #     Nếu CSI camera không nhận:
 #       sudo modprobe bcm2835-v4l2  (load V4L2 driver cho Pi Camera)
 #       rồi thử lại với CAMERA_INDEX = 0
-#  4. UART port trong motor_raspi.py:
+#  3. UART port trong motor_raspi.py:
 #       /dev/ttyAMA0  = UART phần cứng (cần tắt login shell trong raspi-config)
 #       /dev/serial0  = alias tự động của RPi 4/5
 #       /dev/ttyUSB0  = USB-Serial adapter
-#  5. GPIO pins trong ultrasonic_raspi.py → SENSORS_PINS
+#  4. GPIO pins trong ultrasonic_raspi.py → SENSORS_PINS
 #       Mặc định: LEFT TRIG=17 ECHO=27 | CENTER TRIG=23 ECHO=24 | RIGHT TRIG=5 ECHO=6
 #       Đổi nếu nối dây khác.
-#  6. pip install -r requirements.txt   (thêm RPi.GPIO + pyserial)
-#  7. Thêm user vào group gpio nếu cần:
+#  5. pip install -r requirements.txt   (thêm RPi.GPIO + pyserial)
+#  6. Thêm user vào group gpio nếu cần:
 #       sudo usermod -aG gpio $USER && sudo reboot
 # ============================================================
 
@@ -62,11 +61,11 @@ DETECT_EVERY_N = 1        # 3→2: detect thường xuyên hơn, bớt dùng bbo
 # Thứ tự fallback tự động: onnx → yolo → hog (hoặc yolo → onnx → hog)
 DETECTOR_BACKEND = "onnx"
 YOLO_CONFIDENCE  = 0.40     # Ngưỡng confidence tối thiểu để nhận diện người
-DETECTOR_INPUT_SIZE = 640   # model ONNX hiện tại fixed 640; RPi có thể override thấp hơn nếu export lại
+DETECTOR_INPUT_SIZE = 320   # 320 cho RPi (nhẹ hơn 640)
 
-# Multi-capture trên Raspberry Pi: tắt face encoding để tránh tụt FPS mạnh.
+# Multi-capture: face encoding giúp Re-ID chính xác hơn.
 MC_ENABLE_FACE_ENCODING = True
-MC_SNAPSHOT_JPEG_QUALITY = 85
+MC_SNAPSHOT_JPEG_QUALITY = 60
 
 # ============================================================
 #  FACE VERIFICATION (tùy chọn — cần cài face_recognition)
@@ -102,12 +101,11 @@ BBOX_TOO_CLOSE_RATIO = 0.55   # tăng lên để không bị coi là "quá gần
 BBOX_TOO_FAR_RATIO   = 0.03
 
 # Dead zone: nếu |error| < ngưỡng này thì coi là đi thẳng (lọc nhiễu detection)
-# 0.08 ≈ 8% chiều rộng frame — đủ để lọc flickering 1-2 pixel
-STEERING_DEAD_ZONE = 0.08
-STEER_STRAIGHT_LOCK_ERR = 0.05  # nếu mục tiêu gần tâm hơn mức này thì ép đi thẳng
-STEER_MAX_DIFF_RATIO = 0.35     # chênh lệch tối đa giữa 2 bánh khi đang FOLLOWING tiến tới
-STEER_APPROACH_SCALE = 0.55     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
-STEER_CENTER_PRIORITY_ERR = 0.22  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
+STEERING_DEAD_ZONE = 0.10       # 0.14→0.10: giảm vùng chết, EMA đã lọc jitter
+STEER_STRAIGHT_LOCK_ERR = 0.06  # nếu mục tiêu gần tâm hơn mức này thì ép đi thẳng
+STEER_MAX_DIFF_RATIO = 0.75     # buộc 2 bánh cùng tiến, cua vòng cung thay vì xoay
+STEER_APPROACH_SCALE = 0.60     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
+STEER_CENTER_PRIORITY_ERR = 0.15  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
 WHEEL_TRIM_LEFT = 1.45          # bánh trái yếu hơn → bù 45%
 WHEEL_TRIM_RIGHT = 1.00         # giữ nguyên bánh phải
 WHEEL_FORWARD_BOOST_LEFT = 0    # bỏ boost cố định, ưu tiên bù theo tỉ lệ 25%
@@ -119,7 +117,7 @@ MOTOR_SWAP_LEFT_RIGHT = True    # phần cứng thực tế đang phản ứng n
 # ============================================================
 #  MOTOR CONTROL
 # ============================================================
-BASE_SPEED  = 60          # Tốc độ nền khi đi thẳng (0–100)
+BASE_SPEED  = 0           # PID speed controller tự tính, không cần base cố định
 MAX_SPEED   = 100         # Giới hạn tốc độ tối đa
 MIN_SPEED   = -60         # Giới hạn tốc độ tối thiểu (âm = lùi)
 ONLY_FORWARD_MODE = True  # True -> chặn mọi lệnh lùi, xe chỉ được đi tới hoặc dừng
@@ -132,12 +130,12 @@ ONLY_FORWARD_MODE = True  # True -> chặn mọi lệnh lùi, xe chỉ được 
 #   Tăng STEER_KP → phản ứng nhanh hơn, dễ dao động nếu quá cao
 #   Tăng STEER_KI → xử lý lệch hệ thống (camera lắp lệch tâm)
 #   Tăng STEER_KD → giảm vọt lố khi người chuyển hướng đột ngột
-STEER_KP               = 50.0   # gain tỉ lệ (hạ từ 80 → 50 cho RPi chậm)
-STEER_KI               =  3.0   # gain tích phân (hạ từ 5 → 3, tránh windup trên RPi)
-STEER_KD               = 12.0   # gain vi phân (hạ từ 20 → 12, tránh dao động)
+STEER_KP               = 22.0   # gain tỉ lệ — giảm dao động
+STEER_KI               =  1.5   # gain tích phân — giảm tích lũy sai
+STEER_KD               =  6.0   # gain vi phân — tăng độ dập dao động
 STEER_INTEGRAL_LIMIT   = 15.0   # anti-windup: max |integral contribution| (speed units)
-STEER_OUTPUT_LIMIT     = 70.0   # clamp đầu ra: max speed differential (0–100)
-STEER_DERIV_ALPHA      =  0.15  # hệ số lọc low-pass đạo hàm (0.1=mượt – 1.0=raw)
+STEER_OUTPUT_LIMIT     = 40.0   # clamp đầu ra: max speed differential
+STEER_DERIV_ALPHA      =  0.10  # hệ số lọc low-pass đạo hàm (0.1=mượt – 1.0=raw)
 
 # Giảm quay tại chỗ trong lúc FOLLOWING.
 # Nếu base speed quá nhỏ thì chỉ cho đánh lái nhẹ; muốn quay tìm người dùng SEARCH_SPIN riêng.
@@ -155,38 +153,40 @@ STEER_LOW_SPEED_ERR    = 0.0
 #   0.10 ≈ người ở ~1.5–2 m  (camera laptop góc rộng)
 #   0.15 ≈ người ở ~1–1.5 m
 BBOX_TARGET_RATIO      =  0.42  # PID ước lượng là chính; sensor trước chỉ chặn ở mốc 15 cm
-BBOX_HOLD_ZONE         =  0.05  # vùng giữ vừa phải quanh điểm ước lượng
+BBOX_HOLD_ZONE         =  0.03  # vùng giữ nhỏ để phản ứng nhanh hơn
 
 SPEED_KP               =  60.0  # gain tỉ lệ (hạ từ 100 → 60, bớt giật tiến/lùi)
 SPEED_KI               =   2.0  # gain tích phân (hạ từ 5 → 2, tránh tích lũy sai)
 SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
-SPEED_OUTPUT_LIMIT     =  16.0  # hạ trần tốc độ để follow chậm và mượt hơn
-SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh hơn (0.10 = rất mượt, bớt noise bbox)
-FOLLOW_MIN_SPEED       =  12     # có target và còn xa hơn mong muốn thì vẫn tiến nhưng chậm hơn
-FOLLOW_MIN_ERR         =  0.03   # thiếu nhẹ khoảng cách là đã bắt đầu bò tới
-FOLLOW_FORCE_APPROACH_RATIO = 0.45  # nếu bbox vẫn dưới mức này thì cho phép tiến dựa trên sensor
-MOTOR_MIN_EFFECTIVE_SPEED = 18   # ngưỡng thắng ma sát thấp hơn để xe không bị vọt
+SPEED_OUTPUT_LIMIT     =  18.0  # trần tốc độ follow
+SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh (0.10 = rất mượt, bớt noise bbox)
+FOLLOW_MIN_SPEED       =  24     # base cao hơn → max_diff=18 → quẹo rõ mà vẫn cua cung
+FOLLOW_MIN_ERR         =  0.02   # thiếu nhẹ khoảng cách là đã bắt đầu bò tới
+FOLLOW_FORCE_APPROACH_RATIO = 0.50  # nếu bbox vẫn dưới mức này thì cho phép tiến dựa trên sensor
+MOTOR_MIN_EFFECTIVE_SPEED = 12   # không ép bánh yếu lên cao, giữ chênh lệch quẹo
 MOTOR_LOG_MIN_ABS = 8            # in log cả các lệnh nhỏ để dễ debug
-MOTOR_START_BOOST = 28           # giảm cú hích khởi động để xe bớt lao
+MOTOR_START_BOOST = 30           # cú hích khởi động để thắng ma sát
 
 # Backward-compat alias (không xóa để không phá code cũ nếu có)
-KP = STEER_KP / 100.0   # KP cũ ≈ steer_output/base ≈ 80/100 = 0.80
+KP = STEER_KP / 100.0   # backward-compat alias
 
 # ============================================================
 #  TIMING
 # ============================================================
 TARGET_LOST_TIMEOUT  = 3.5   # Giây không thấy người → chuyển TARGET_LOST
-MOTOR_SEND_INTERVAL  = 0.05  # Giây giữa hai lần gửi lệnh (~20 Hz)
+MOTOR_SEND_INTERVAL  = 0.10  # ~10 Hz, bớt spam STM32
 
 # Giảm số lệnh UART không cần thiết xuống STM32.
 # Nếu chênh lệch lệnh giữa 2 lần gửi quá nhỏ thì giữ lệnh cũ để bánh xe đỡ giật.
-MOTOR_CMD_DEADBAND   = 0     # generic/laptop: không deadband
-MOTOR_MAX_DELTA_PER_SEND = 100  # generic/laptop: gần như không giới hạn ramp
-CAMERA_STALL_TIMEOUT = 1.0      # generic/laptop: watchdog lỏng
-CAMERA_STALL_MAX_CONSECUTIVE = 2  # chỉ fail-safe khi bị chậm liên tiếp nhiều vòng
-CAMERA_READ_FAIL_LIMIT = 1      # generic/laptop: lỗi là dừng luôn như hiện tại
-MOTOR_REVERSE_BRAKE_THRESHOLD = 0  # generic/laptop: không chèn pha hãm trước khi đảo chiều
+MOTOR_CMD_DEADBAND   = 5        # 8→5: lọc giật nhẹ, không nuốt lệnh nhỏ
+MOTOR_MAX_DELTA_PER_SEND = 22   # 15→22: tăng tốc nhanh hơn, vẫn mượt
+# ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
+# Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
+CAMERA_STALL_TIMEOUT = 1.20     # watchdog cho ONNX trên RPi
+CAMERA_STALL_MAX_CONSECUTIVE = 3  # fail-safe khi bị chậm liên tiếp
+CAMERA_READ_FAIL_LIMIT = 3      # cho phép retry vài lần trước khi dừng
+MOTOR_REVERSE_BRAKE_THRESHOLD = 10  # chèn pha hãm trước khi đảo chiều
 
 # ============================================================
 #  SEARCH SPIN — Xoay tìm người khi TARGET_LOST
@@ -220,46 +220,3 @@ DEFAULT_DISTANCE_CM = 150.0
 
 # Backward-compat alias
 SAFE_DISTANCE_CM    = OBSTACLE_STOP_CM
-
-
-# ============================================================
-#  RASPI OVERRIDES
-# ============================================================
-# Chỉ áp dụng các tinh chỉnh "xe thật" khi chạy trên Raspberry Pi.
-if HARDWARE_MODE == "raspi":
-    DETECT_EVERY_N = 1
-    DETECTOR_INPUT_SIZE = 320
-    MC_ENABLE_FACE_ENCODING = True
-    MC_SNAPSHOT_JPEG_QUALITY = 60
-
-    BASE_SPEED = 0
-    BBOX_HOLD_ZONE = 0.03
-    STEERING_DEAD_ZONE = 0.14      # 0.10→0.14: lọc jitter bbox tốt hơn
-    STEER_KP = 22.0                # 30→22: giảm dao động
-    STEER_KI = 1.5                 # 2→1.5: giảm tích lũy sai
-    STEER_KD = 6.0                 # 5→6: tăng độ dập dao động
-    STEER_OUTPUT_LIMIT = 40.0      # 50→40: giới hạn đầu ra nhỏ hơn
-    STEER_DERIV_ALPHA = 0.10
-    STEER_LOW_SPEED_CUTOFF = 0
-    STEER_LOW_SPEED_ERR = 0.0
-    STEER_STRAIGHT_LOCK_ERR = 0.06
-    STEER_MAX_DIFF_RATIO = 0.75    # 3.0→0.75: buộc 2 bánh cùng tiến, cua vòng cung thay vì xoay
-    STEER_APPROACH_SCALE = 0.60    # 0.75→0.60
-    STEER_CENTER_PRIORITY_ERR = 0.15
-
-    MOTOR_SEND_INTERVAL = 0.10     # 0.06→0.10: gửi chậm hơn ~10Hz, bớt spam STM32
-    MOTOR_CMD_DEADBAND = 8         # 3→8: bỏ qua thay đổi <8 đơn vị, hết giật
-    MOTOR_MAX_DELTA_PER_SEND = 15  # 50→15: ramp chậm, mượt, không nhảy bậc
-    # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
-    # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
-    CAMERA_STALL_TIMEOUT = 1.20
-    CAMERA_STALL_MAX_CONSECUTIVE = 3
-    CAMERA_READ_FAIL_LIMIT = 3
-    MOTOR_REVERSE_BRAKE_THRESHOLD = 10
-    SPEED_OUTPUT_LIMIT = 18.0
-    FOLLOW_MIN_SPEED = 24          # 18→24: base cao hơn → max_diff=18 → quẹo rõ mà vẫn cua cung
-    FOLLOW_MIN_ERR = 0.02
-    FOLLOW_FORCE_APPROACH_RATIO = 0.50
-    MOTOR_MIN_EFFECTIVE_SPEED = 12 # 20→12: không ép bánh yếu lên cao, giữ chênh lệch quẹo
-    MOTOR_LOG_MIN_ABS = 8
-    MOTOR_START_BOOST = 30
