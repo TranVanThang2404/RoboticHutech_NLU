@@ -819,7 +819,7 @@ def camera_loop():
         # ====================================================
         if t_now - last_tx >= config.MOTOR_SEND_INTERVAL:
             cmd_left, cmd_right = _ramp_motor_command(cmd_left, cmd_right, left, right)
-            sent_ok = motor.send(cmd_left, cmd_right, apply_compensation=False)
+            sent_ok = motor.send(cmd_left, cmd_right, apply_compensation=True)
             if sent_ok:
                 state_manager.update_motor(cmd_left, cmd_right, last_sim)
             else:
