@@ -175,12 +175,14 @@ KP = STEER_KP / 100.0   # backward-compat alias
 #  TIMING
 # ============================================================
 TARGET_LOST_TIMEOUT  = 3.5   # Giây không thấy người → chuyển TARGET_LOST
-MOTOR_SEND_INTERVAL  = 0.10  # ~10 Hz, bớt spam STM32
+MOTOR_SEND_INTERVAL  = 0.06  # 0.10→0.06: ~16 Hz, phản ứng nhanh hơn
 
 # Giảm số lệnh UART không cần thiết xuống STM32.
 # Nếu chênh lệch lệnh giữa 2 lần gửi quá nhỏ thì giữ lệnh cũ để bánh xe đỡ giật.
 MOTOR_CMD_DEADBAND   = 8        # bỏ qua thay đổi <8 đơn vị, chống giật
 MOTOR_MAX_DELTA_PER_SEND = 15   # ramp chậm, mượt, không nhảy bậc
+MOTOR_ACK_TIMEOUT    = 0.015    # 30ms→15ms: chờ ACK ngắn hơn
+MOTOR_ACK_RETRIES    = 2        # 3→2: giảm retry, tối đa 30ms thay vì 90ms
 # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
 # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
 CAMERA_STALL_TIMEOUT = 2.50     # 1.2→2.5: ONNX trên RPi thực tế ~1.5-1.9s, tránh báo giả
