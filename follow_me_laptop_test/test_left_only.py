@@ -41,7 +41,7 @@ def main() -> int:
             time.sleep(1.0)
 
         print(f"[TEST] Gui lenh: L=+{speed}, R=0")
-        if not motor.send(speed, 0):
+        if not motor.send(speed, 0, apply_compensation=False):
             print("[TEST] Khong nhan duoc ACK tu STM32, huy test.")
             return 1
 

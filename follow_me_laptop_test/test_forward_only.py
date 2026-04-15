@@ -60,7 +60,7 @@ def main() -> int:
             time.sleep(1.0)
 
         print("[TEST] Gui lenh di thang toi: L=+{0}, R=+{0}".format(speed))
-        if not motor.send(speed, speed):
+        if not motor.send(speed, speed, apply_compensation=False):
             print("[TEST] Khong nhan duoc ACK tu STM32, huy test.")
             return 1
 

@@ -129,21 +129,22 @@ class RealMotorUART:
         self._ack_miss_count += 1
         return False
 
-    def send(self, left: int, right: int) -> bool:
+    def send(self, left: int, right: int, apply_compensation: bool = True) -> bool:
         left  = max(-100, min(100, int(left)))
         right = max(-100, min(100, int(right)))
-        left  = _apply_trim(left, getattr(config, "WHEEL_TRIM_LEFT", 1.0))
-        right = _apply_trim(right, getattr(config, "WHEEL_TRIM_RIGHT", 1.0))
-        left, right = _apply_forward_boost(left, right)
-        left, right = _apply_directional_steer_comp(left, right)
-        left  = _apply_min_effective_speed(left)
-        right = _apply_min_effective_speed(right)
-        left, right = _apply_start_boost(
-            self._last_cmd[0] if self._last_cmd != (-999, -999) else 0,
-            self._last_cmd[1] if self._last_cmd != (-999, -999) else 0,
-            left,
-            right,
-        )
+        if apply_compensation:
+            left  = _apply_trim(left, getattr(config, "WHEEL_TRIM_LEFT", 1.0))
+            right = _apply_trim(right, getattr(config, "WHEEL_TRIM_RIGHT", 1.0))
+            left, right = _apply_forward_boost(left, right)
+            left, right = _apply_directional_steer_comp(left, right)
+            left  = _apply_min_effective_speed(left)
+            right = _apply_min_effective_speed(right)
+            left, right = _apply_start_boost(
+                self._last_cmd[0] if self._last_cmd != (-999, -999) else 0,
+                self._last_cmd[1] if self._last_cmd != (-999, -999) else 0,
+                left,
+                right,
+            )
 
         # Loại bỏ thay đổi rất nhỏ để xe bớt giật và STM32 không bị spam setpoint.
         if self._last_cmd != (-999, -999):
