@@ -57,6 +57,17 @@ def _apply_min_effective_speed(value: int) -> int:
     return min_eff if value > 0 else -min_eff
 
 
+def _apply_forward_boost(left: int, right: int) -> tuple[int, int]:
+    """Bù lệch cơ khí khi xe đang chạy tiến."""
+    if left > 0:
+        left += int(getattr(config, "WHEEL_FORWARD_BOOST_LEFT", 0))
+    if right > 0:
+        right += int(getattr(config, "WHEEL_FORWARD_BOOST_RIGHT", 0))
+    left = max(-100, min(100, left))
+    right = max(-100, min(100, right))
+    return left, right
+
+
 class RealMotorUART:
     def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.005):
         self._port     = port
@@ -90,6 +101,7 @@ class RealMotorUART:
         right = max(-100, min(100, int(right)))
         left  = _apply_trim(left, getattr(config, "WHEEL_TRIM_LEFT", 1.0))
         right = _apply_trim(right, getattr(config, "WHEEL_TRIM_RIGHT", 1.0))
+        left, right = _apply_forward_boost(left, right)
         left  = _apply_min_effective_speed(left)
         right = _apply_min_effective_speed(right)
 
