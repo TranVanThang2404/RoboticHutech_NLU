@@ -511,7 +511,7 @@ def camera_loop():
     registering = False
 
     # ---- EMA smoothing cho bbox (chống jitter trên RPi chậm) ----
-    _ema_alpha  = 0.55           # 0.55: cân bằng mượt + phản ứng nhanh
+    _ema_alpha  = 0.35           # 0.35: làm mượt mạnh, ưu tiên ổn định
     _smooth_cx  = None           # tâm X đã làm mượt
     _smooth_ratio = None         # bbox_area_ratio đã làm mượt
 

@@ -101,7 +101,7 @@ BBOX_TOO_CLOSE_RATIO = 0.55   # tăng lên để không bị coi là "quá gần
 BBOX_TOO_FAR_RATIO   = 0.03
 
 # Dead zone: nếu |error| < ngưỡng này thì coi là đi thẳng (lọc nhiễu detection)
-STEERING_DEAD_ZONE = 0.10       # lọc jitter, EMA đã lọc thêm
+STEERING_DEAD_ZONE = 0.14       # lọc jitter bbox
 STEER_STRAIGHT_LOCK_ERR = 0.06  # nếu mục tiêu gần tâm hơn mức này thì ép đi thẳng
 STEER_MAX_DIFF_RATIO = 0.60     # 0.75→0.60: giới hạn chênh lệch 2 bánh chặt hơn, bớt swing
 STEER_APPROACH_SCALE = 0.50     # 0.60→0.50: ưu tiên đi thẳng hơn khi đang tiến
@@ -179,8 +179,8 @@ MOTOR_SEND_INTERVAL  = 0.10  # ~10 Hz, bớt spam STM32
 
 # Giảm số lệnh UART không cần thiết xuống STM32.
 # Nếu chênh lệch lệnh giữa 2 lần gửi quá nhỏ thì giữ lệnh cũ để bánh xe đỡ giật.
-MOTOR_CMD_DEADBAND   = 5        # 8→5: lọc giật nhẹ, không nuốt lệnh nhỏ
-MOTOR_MAX_DELTA_PER_SEND = 22   # 15→22: tăng tốc nhanh hơn, vẫn mượt
+MOTOR_CMD_DEADBAND   = 8        # bỏ qua thay đổi <8 đơn vị, chống giật
+MOTOR_MAX_DELTA_PER_SEND = 15   # ramp chậm, mượt, không nhảy bậc
 # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
 # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
 CAMERA_STALL_TIMEOUT = 2.50     # 1.2→2.5: ONNX trên RPi thực tế ~1.5-1.9s, tránh báo giả
