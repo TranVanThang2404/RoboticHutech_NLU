@@ -79,6 +79,20 @@ def _apply_directional_steer_comp(left: int, right: int) -> tuple[int, int]:
     return left, right
 
 
+def _apply_start_boost(prev_left: int, prev_right: int, left: int, right: int) -> tuple[int, int]:
+    """Khi vừa rời trạng thái đứng yên, đẩy lệnh lên cao hơn để thắng ma sát khởi động."""
+    boost = int(getattr(config, "MOTOR_START_BOOST", 0))
+    if boost <= 0:
+        return left, right
+    if prev_left == 0 and left > 0:
+        left = max(left, boost)
+    if prev_right == 0 and right > 0:
+        right = max(right, boost)
+    left = max(-100, min(100, left))
+    right = max(-100, min(100, right))
+    return left, right
+
+
 class RealMotorUART:
     def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.005):
         self._port     = port
@@ -116,6 +130,12 @@ class RealMotorUART:
         left, right = _apply_directional_steer_comp(left, right)
         left  = _apply_min_effective_speed(left)
         right = _apply_min_effective_speed(right)
+        left, right = _apply_start_boost(
+            self._last_cmd[0] if self._last_cmd != (-999, -999) else 0,
+            self._last_cmd[1] if self._last_cmd != (-999, -999) else 0,
+            left,
+            right,
+        )
 
         # Loại bỏ thay đổi rất nhỏ để xe bớt giật và STM32 không bị spam setpoint.
         if self._last_cmd != (-999, -999):
