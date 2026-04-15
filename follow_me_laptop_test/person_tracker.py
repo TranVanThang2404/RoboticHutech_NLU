@@ -39,6 +39,7 @@ Multi-template gallery:
 import time
 import cv2
 import numpy as np
+import config
 
 # ---- Descriptor shape ----
 _N_HUE   = 16   # hue bins / region           (màu sắc chính)
