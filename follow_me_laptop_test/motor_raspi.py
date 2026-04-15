@@ -68,6 +68,17 @@ def _apply_forward_boost(left: int, right: int) -> tuple[int, int]:
     return left, right
 
 
+def _apply_directional_steer_comp(left: int, right: int) -> tuple[int, int]:
+    """Bù theo hướng rẽ để sửa hiện tượng mục tiêu bên phải nhưng xe vẫn kéo trái."""
+    if left > right and left > 0:
+        left += int(getattr(config, "STEER_RIGHT_LEFT_BOOST", 0))
+    elif right > left and right > 0:
+        right -= int(getattr(config, "STEER_LEFT_RIGHT_REDUCE", 0))
+    left = max(-100, min(100, left))
+    right = max(-100, min(100, right))
+    return left, right
+
+
 class RealMotorUART:
     def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.005):
         self._port     = port
@@ -102,6 +113,7 @@ class RealMotorUART:
         left  = _apply_trim(left, getattr(config, "WHEEL_TRIM_LEFT", 1.0))
         right = _apply_trim(right, getattr(config, "WHEEL_TRIM_RIGHT", 1.0))
         left, right = _apply_forward_boost(left, right)
+        left, right = _apply_directional_steer_comp(left, right)
         left  = _apply_min_effective_speed(left)
         right = _apply_min_effective_speed(right)
 
