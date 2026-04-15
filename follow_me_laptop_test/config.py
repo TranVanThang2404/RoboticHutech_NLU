@@ -51,7 +51,7 @@ USE_GUI = True
 CAMERA_INDEX = 0          # 0 = webcam tích hợp | 1 = USB camera đầu tiên
 CAMERA_WIDTH  = 720
 CAMERA_HEIGHT = 480
-DETECT_EVERY_N = 1        # 3→2: detect thường xuyên hơn, bớt dùng bbox cũ
+DETECT_EVERY_N = 3        # detect mỗi 3 frame: frame 1 ONNX ~1.5s, frame 2-3 skip ~0.05s → motor update nhanh hơn
 
 #  PERSON DETECTION
 # ============================================================
@@ -101,12 +101,12 @@ BBOX_TOO_CLOSE_RATIO = 0.55   # tăng lên để không bị coi là "quá gần
 BBOX_TOO_FAR_RATIO   = 0.03
 
 # Dead zone: nếu |error| < ngưỡng này thì coi là đi thẳng (lọc nhiễu detection)
-STEERING_DEAD_ZONE = 0.10       # 0.14→0.10: giảm vùng chết, EMA đã lọc jitter
+STEERING_DEAD_ZONE = 0.10       # lọc jitter, EMA đã lọc thêm
 STEER_STRAIGHT_LOCK_ERR = 0.06  # nếu mục tiêu gần tâm hơn mức này thì ép đi thẳng
-STEER_MAX_DIFF_RATIO = 0.75     # buộc 2 bánh cùng tiến, cua vòng cung thay vì xoay
-STEER_APPROACH_SCALE = 0.60     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
-STEER_CENTER_PRIORITY_ERR = 0.15  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
-WHEEL_TRIM_LEFT = 1.45          # bánh trái yếu hơn → bù 45%
+STEER_MAX_DIFF_RATIO = 0.60     # 0.75→0.60: giới hạn chênh lệch 2 bánh chặt hơn, bớt swing
+STEER_APPROACH_SCALE = 0.50     # 0.60→0.50: ưu tiên đi thẳng hơn khi đang tiến
+STEER_CENTER_PRIORITY_ERR = 0.18  # 0.15→0.18: vùng ưu tiên đi thẳng rộng hơn
+WHEEL_TRIM_LEFT = 1.20          # 1.45→1.20: giảm từ 45% xuống 20%, tránh lệch khi đi thẳng
 WHEEL_TRIM_RIGHT = 1.00         # giữ nguyên bánh phải
 WHEEL_FORWARD_BOOST_LEFT = 0    # bỏ boost cố định, ưu tiên bù theo tỉ lệ 25%
 WHEEL_FORWARD_BOOST_RIGHT = 0   # bánh phải giữ nguyên
@@ -130,11 +130,11 @@ ONLY_FORWARD_MODE = True  # True -> chặn mọi lệnh lùi, xe chỉ được 
 #   Tăng STEER_KP → phản ứng nhanh hơn, dễ dao động nếu quá cao
 #   Tăng STEER_KI → xử lý lệch hệ thống (camera lắp lệch tâm)
 #   Tăng STEER_KD → giảm vọt lố khi người chuyển hướng đột ngột
-STEER_KP               = 22.0   # gain tỉ lệ — giảm dao động
-STEER_KI               =  1.5   # gain tích phân — giảm tích lũy sai
-STEER_KD               =  6.0   # gain vi phân — tăng độ dập dao động
-STEER_INTEGRAL_LIMIT   = 15.0   # anti-windup: max |integral contribution| (speed units)
-STEER_OUTPUT_LIMIT     = 40.0   # clamp đầu ra: max speed differential
+STEER_KP               = 15.0   # 22→15: giảm gain cho loop chậm ~1.5s
+STEER_KI               =  1.0   # 1.5→1.0: giảm tích lũy, loop chậm tích nhanh
+STEER_KD               = 10.0   # 6→10: tăng damping mạnh, dập dao động
+STEER_INTEGRAL_LIMIT   = 10.0   # 15→10: chặn windup chặt hơn
+STEER_OUTPUT_LIMIT     = 25.0   # 40→25: chặn lệch tối đa, không còn L=51 R=12
 STEER_DERIV_ALPHA      =  0.10  # hệ số lọc low-pass đạo hàm (0.1=mượt – 1.0=raw)
 
 # Giảm quay tại chỗ trong lúc FOLLOWING.
@@ -161,7 +161,7 @@ SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
 SPEED_OUTPUT_LIMIT     =  18.0  # trần tốc độ follow
 SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh (0.10 = rất mượt, bớt noise bbox)
-FOLLOW_MIN_SPEED       =  24     # base cao hơn → max_diff=18 → quẹo rõ mà vẫn cua cung
+FOLLOW_MIN_SPEED       =  20     # 24→20: giảm tốc base, bớt quán tính khi dao động
 FOLLOW_MIN_ERR         =  0.02   # thiếu nhẹ khoảng cách là đã bắt đầu bò tới
 FOLLOW_FORCE_APPROACH_RATIO = 0.50  # nếu bbox vẫn dưới mức này thì cho phép tiến dựa trên sensor
 MOTOR_MIN_EFFECTIVE_SPEED = 12   # không ép bánh yếu lên cao, giữ chênh lệch quẹo
@@ -183,7 +183,7 @@ MOTOR_CMD_DEADBAND   = 5        # 8→5: lọc giật nhẹ, không nuốt lện
 MOTOR_MAX_DELTA_PER_SEND = 22   # 15→22: tăng tốc nhanh hơn, vẫn mượt
 # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
 # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
-CAMERA_STALL_TIMEOUT = 1.20     # watchdog cho ONNX trên RPi
+CAMERA_STALL_TIMEOUT = 2.50     # 1.2→2.5: ONNX trên RPi thực tế ~1.5-1.9s, tránh báo giả
 CAMERA_STALL_MAX_CONSECUTIVE = 3  # fail-safe khi bị chậm liên tiếp
 CAMERA_READ_FAIL_LIMIT = 3      # cho phép retry vài lần trước khi dừng
 MOTOR_REVERSE_BRAKE_THRESHOLD = 10  # chèn pha hãm trước khi đảo chiều
