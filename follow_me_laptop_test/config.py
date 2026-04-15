@@ -108,7 +108,7 @@ STEER_STRAIGHT_LOCK_ERR = 0.05  # nếu mục tiêu gần tâm hơn mức này t
 STEER_MAX_DIFF_RATIO = 0.35     # chênh lệch tối đa giữa 2 bánh khi đang FOLLOWING tiến tới
 STEER_APPROACH_SCALE = 0.55     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
 STEER_CENTER_PRIORITY_ERR = 0.22  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
-WHEEL_TRIM_LEFT = 1.45          # bánh trái yếu hơn → bù 35% (tăng từ 25%)
+WHEEL_TRIM_LEFT = 1.45          # bánh trái yếu hơn → bù 45%
 WHEEL_TRIM_RIGHT = 1.00         # giữ nguyên bánh phải
 WHEEL_FORWARD_BOOST_LEFT = 0    # bỏ boost cố định, ưu tiên bù theo tỉ lệ 25%
 WHEEL_FORWARD_BOOST_RIGHT = 0   # bánh phải giữ nguyên
@@ -163,7 +163,7 @@ SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
 SPEED_OUTPUT_LIMIT     =  16.0  # hạ trần tốc độ để follow chậm và mượt hơn
 SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh hơn (0.10 = rất mượt, bớt noise bbox)
-FOLLOW_MIN_SPEED       =  14     # có target và còn xa hơn mong muốn thì vẫn tiến nhưng chậm hơn
+FOLLOW_MIN_SPEED       =  12     # có target và còn xa hơn mong muốn thì vẫn tiến nhưng chậm hơn
 FOLLOW_MIN_ERR         =  0.03   # thiếu nhẹ khoảng cách là đã bắt đầu bò tới
 FOLLOW_FORCE_APPROACH_RATIO = 0.45  # nếu bbox vẫn dưới mức này thì cho phép tiến dựa trên sensor
 MOTOR_MIN_EFFECTIVE_SPEED = 18   # ngưỡng thắng ma sát thấp hơn để xe không bị vọt
@@ -227,18 +227,18 @@ SAFE_DISTANCE_CM    = OBSTACLE_STOP_CM
 # ============================================================
 # Chỉ áp dụng các tinh chỉnh "xe thật" khi chạy trên Raspberry Pi.
 if HARDWARE_MODE == "raspi":
-    DETECT_EVERY_N = 2
+    DETECT_EVERY_N = 1
     DETECTOR_INPUT_SIZE = 320
     MC_ENABLE_FACE_ENCODING = True
     MC_SNAPSHOT_JPEG_QUALITY = 60
 
     BASE_SPEED = 0
     BBOX_HOLD_ZONE = 0.03
-    STEERING_DEAD_ZONE = 0.10      # 0.18→0.10: bỏ qua ít hơn, phản ứng sớm hơn
-    STEER_KP = 30.0                # 40→30: bớt phản ứng quá mạnh gây xoay vòng
-    STEER_KI = 2.0
-    STEER_KD = 5.0
-    STEER_OUTPUT_LIMIT = 50.0
+    STEERING_DEAD_ZONE = 0.14      # 0.10→0.14: lọc jitter bbox tốt hơn
+    STEER_KP = 22.0                # 30→22: giảm dao động
+    STEER_KI = 1.5                 # 2→1.5: giảm tích lũy sai
+    STEER_KD = 6.0                 # 5→6: tăng độ dập dao động
+    STEER_OUTPUT_LIMIT = 40.0      # 50→40: giới hạn đầu ra nhỏ hơn
     STEER_DERIV_ALPHA = 0.10
     STEER_LOW_SPEED_CUTOFF = 0
     STEER_LOW_SPEED_ERR = 0.0
@@ -247,9 +247,9 @@ if HARDWARE_MODE == "raspi":
     STEER_APPROACH_SCALE = 0.60    # 0.75→0.60
     STEER_CENTER_PRIORITY_ERR = 0.15
 
-    MOTOR_SEND_INTERVAL = 0.06
-    MOTOR_CMD_DEADBAND = 3         # 4→3: nhạy hơn
-    MOTOR_MAX_DELTA_PER_SEND = 50  # 25→50: ramp nhanh gấp đôi
+    MOTOR_SEND_INTERVAL = 0.10     # 0.06→0.10: gửi chậm hơn ~10Hz, bớt spam STM32
+    MOTOR_CMD_DEADBAND = 8         # 3→8: bỏ qua thay đổi <8 đơn vị, hết giật
+    MOTOR_MAX_DELTA_PER_SEND = 15  # 50→15: ramp chậm, mượt, không nhảy bậc
     # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
     # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
     CAMERA_STALL_TIMEOUT = 1.20
