@@ -104,6 +104,10 @@ BBOX_TOO_FAR_RATIO   = 0.03
 # Dead zone: nếu |error| < ngưỡng này thì coi là đi thẳng (lọc nhiễu detection)
 # 0.08 ≈ 8% chiều rộng frame — đủ để lọc flickering 1-2 pixel
 STEERING_DEAD_ZONE = 0.08
+STEER_STRAIGHT_LOCK_ERR = 0.05  # nếu mục tiêu gần tâm hơn mức này thì ép đi thẳng
+STEER_MAX_DIFF_RATIO = 0.35     # chênh lệch tối đa giữa 2 bánh khi đang FOLLOWING tiến tới
+WHEEL_TRIM_LEFT = 1.00          # bù sai số cơ khí bánh trái
+WHEEL_TRIM_RIGHT = 1.00         # bù sai số cơ khí bánh phải
 
 # ============================================================
 #  MOTOR CONTROL
@@ -225,6 +229,8 @@ if HARDWARE_MODE == "raspi":
     STEER_DERIV_ALPHA = 0.10
     STEER_LOW_SPEED_CUTOFF = 8
     STEER_LOW_SPEED_ERR = 0.20
+    STEER_STRAIGHT_LOCK_ERR = 0.06
+    STEER_MAX_DIFF_RATIO = 0.25
 
     MOTOR_SEND_INTERVAL = 0.08
     MOTOR_CMD_DEADBAND = 6

@@ -35,6 +35,15 @@ def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
     return bytes([FRAME_SOF]) + payload + bytes([calc_crc(payload), FRAME_EOF])
 
 
+def _apply_trim(value: int, trim: float) -> int:
+    """Bù sai số cơ khí từng bánh, giữ nguyên dấu tiến/lùi."""
+    if value == 0:
+        return 0
+    scaled = int(round(abs(value) * float(trim)))
+    scaled = max(0, min(100, scaled))
+    return scaled if value > 0 else -scaled
+
+
 class RealMotorUART:
     def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.005):
         self._port     = port
@@ -66,6 +75,8 @@ class RealMotorUART:
     def send(self, left: int, right: int) -> bool:
         left  = max(-100, min(100, int(left)))
         right = max(-100, min(100, int(right)))
+        left  = _apply_trim(left, getattr(config, "WHEEL_TRIM_LEFT", 1.0))
+        right = _apply_trim(right, getattr(config, "WHEEL_TRIM_RIGHT", 1.0))
 
         # Loại bỏ thay đổi rất nhỏ để xe bớt giật và STM32 không bị spam setpoint.
         if self._last_cmd != (-999, -999):

@@ -92,7 +92,14 @@ def compute_motor(
         steer_err = 0.0
         # Không reset PID, chỉ đưa error = 0 để integral dần về 0
 
-    steer_out = steer_pid.compute(steer_err, dt)       # speed differential
+    # Khi mục tiêu đã gần chính giữa khung hình thì ưu tiên chạy thẳng tuyệt đối,
+    # tránh giữ lại bias tích lũy làm xe cứ lắc trái/phải.
+    if (not obs.left_blocked and not obs.right_blocked and
+            abs(steer_err) < getattr(config, "STEER_STRAIGHT_LOCK_ERR", 0.0)):
+        steer_pid.reset()
+        steer_out = 0.0
+    else:
+        steer_out = steer_pid.compute(steer_err, dt)       # speed differential
 
     # Ưu tiên cua mượt: khi xe đang gần như đứng yên/tiến rất chậm thì
     # không cho steering đủ lớn để biến thành quay tại chỗ liên tục.
@@ -118,13 +125,15 @@ def compute_motor(
     # Khi đang FOLLOWING bình thường, giới hạn chênh lệch hai bánh theo base speed
     # để ưu tiên cua vòng cung thay vì một bánh tiến một bánh lùi.
     if base >= 0:
-        steer_out = max(-abs(base), min(abs(base), steer_out))
+        max_diff = abs(base) * float(getattr(config, "STEER_MAX_DIFF_RATIO", 1.0))
+        steer_out = max(-max_diff, min(max_diff, steer_out))
 
     # ============ Tổng hợp đầu ra ============
     left_speed  = max(min_speed, min(config.MAX_SPEED,
                       int(base + steer_out)))
     right_speed = max(min_speed, min(config.MAX_SPEED,
                       int(base - steer_out)))
+
     return left_speed, right_speed
 
 
