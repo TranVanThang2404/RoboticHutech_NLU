@@ -81,6 +81,12 @@ def compute_motor(
     min_speed = 0 if getattr(config, "ONLY_FORWARD_MODE", False) else config.MIN_SPEED
     base = max(min_speed, min(config.MAX_SPEED, base))
 
+    # Khi mục tiêu vẫn còn nhỏ hơn mức mong muốn khá rõ, ép xe bò tới tối thiểu
+    # để tránh trạng thái FOLLOWING nhưng lệnh motor vẫn bằng 0.
+    if (bbox_area_ratio < (config.BBOX_TARGET_RATIO - getattr(config, "FOLLOW_MIN_ERR", 0.0))
+            and not obs.center_stop):
+        base = max(base, int(getattr(config, "FOLLOW_MIN_SPEED", 0)))
+
     # Giảm tốc theo cảm biến GIỮA (slow_factor: 1.0 → 0.30)
     base = max(min_speed, int(base * obs.slow_factor))
 

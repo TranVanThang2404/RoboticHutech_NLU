@@ -156,6 +156,8 @@ SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
 SPEED_OUTPUT_LIMIT     =  24.0  # hãm tốc độ tiếp cận gần để detector ổn định hơn
 SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh hơn (0.10 = rất mượt, bớt noise bbox)
+FOLLOW_MIN_SPEED       =  12     # có target và còn xa hơn mong muốn thì vẫn bò tới tối thiểu
+FOLLOW_MIN_ERR         =  0.05   # chỉ ép tốc độ tối thiểu khi còn thiếu khoảng cách rõ ràng
 
 # Backward-compat alias (không xóa để không phá code cũ nếu có)
 KP = STEER_KP / 100.0   # KP cũ ≈ steer_output/base ≈ 80/100 = 0.80
@@ -242,3 +244,5 @@ if HARDWARE_MODE == "raspi":
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
     SPEED_OUTPUT_LIMIT = 20.0
+    FOLLOW_MIN_SPEED = 14
+    FOLLOW_MIN_ERR = 0.04
