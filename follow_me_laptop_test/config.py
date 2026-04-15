@@ -82,7 +82,7 @@ FACE_TOLERANCE   = 0.50     # Mặc định face_recognition là 0.60
 # ============================================================
 # Cosine similarity tối thiểu để chấp nhận là đúng người đã đăng ký.
 # Tăng lên nếu bị nhầm người, giảm xuống nếu bị mất theo quá sớm.
-SIMILARITY_THRESHOLD = 0.52
+SIMILARITY_THRESHOLD = 0.45
 
 # ---- Multi-template gallery ----
 # Lưu N snapshot descriptor tại các thời điểm khác nhau để thích nghi
@@ -90,10 +90,10 @@ SIMILARITY_THRESHOLD = 0.52
 # Similarity cuối = max(sim với từng template trong gallery).
 GALLERY_SIZE            = 6     # số snapshot tối đa (tăng = bộ nhớ nhiều hơn, thích nghi tốt hơn)
 GALLERY_UPDATE_INTERVAL = 4.0   # giây tối thiểu giữa 2 lần thêm snapshot mới
-GALLERY_MIN_SIM         = 0.68  # chỉ thêm snapshot khi similarity ≥ ngưỡng này
+GALLERY_MIN_SIM         = 0.58  # chỉ thêm snapshot khi similarity ≥ ngưỡng này
                                  # (tránh lưu frame nhiễu hoặc người khác vào gallery)
 TRACK_POS_BONUS_MAX     = 0.08  # bonus vị trí nhỏ để bám mượt nhưng không lấn át nhận diện
-TRACK_AMBIGUOUS_MARGIN  = 0.04  # nếu 2 ứng viên quá sát điểm nhau thì bỏ qua frame đó
+TRACK_AMBIGUOUS_MARGIN  = 0.00  # đứng gần màn hình dễ đổi pose nhanh; không bỏ frame vì mơ hồ nhẹ
 
 # Bbox area / frame area:
 #   > BBOX_TOO_CLOSE_RATIO → người quá gần → giảm tốc
@@ -147,14 +147,14 @@ STEER_LOW_SPEED_ERR    = 0.0
 # BBOX_TARGET_RATIO: tỷ lệ bbox/frame tại khoảng cách follow lý tưởng
 #   0.10 ≈ người ở ~1.5–2 m  (camera laptop góc rộng)
 #   0.15 ≈ người ở ~1–1.5 m
-BBOX_TARGET_RATIO      =  0.42  # bám rất gần người; cảm biến trước sẽ chặn ở vùng 5-10 cm
-BBOX_HOLD_ZONE         =  0.03  # vùng giữ để xe đứng yên hơn khi đã áp sát
+BBOX_TARGET_RATIO      =  0.30  # đứng gần màn hình vẫn bám được, ít bị crop và mất target hơn
+BBOX_HOLD_ZONE         =  0.04  # vùng giữ rộng hơn để xe đỡ nhấp khi người đứng gần
 
 SPEED_KP               =  60.0  # gain tỉ lệ (hạ từ 100 → 60, bớt giật tiến/lùi)
 SPEED_KI               =   2.0  # gain tích phân (hạ từ 5 → 2, tránh tích lũy sai)
 SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
-SPEED_OUTPUT_LIMIT     =  30.0  # max |delta speed| cộng vào BASE_SPEED (hạ từ 40)
+SPEED_OUTPUT_LIMIT     =  24.0  # hãm tốc độ tiếp cận gần để detector ổn định hơn
 SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh hơn (0.10 = rất mượt, bớt noise bbox)
 
 # Backward-compat alias (không xóa để không phá code cũ nếu có)
@@ -163,7 +163,7 @@ KP = STEER_KP / 100.0   # KP cũ ≈ steer_output/base ≈ 80/100 = 0.80
 # ============================================================
 #  TIMING
 # ============================================================
-TARGET_LOST_TIMEOUT  = 2.0   # Giây không thấy người → chuyển TARGET_LOST
+TARGET_LOST_TIMEOUT  = 3.5   # Giây không thấy người → chuyển TARGET_LOST
 MOTOR_SEND_INTERVAL  = 0.05  # Giây giữa hai lần gửi lệnh (~20 Hz)
 
 # Giảm số lệnh UART không cần thiết xuống STM32.
@@ -190,12 +190,12 @@ SEARCH_SPIN_DIR      = 1     # 1 = xoay phải (CW), -1 = xoay trái (CCW)
 #   OBSTACLE_STOP_CM : xe DỪNG hoàn toàn (vùng nguy hiểm tức thời)
 #   OBSTACLE_SLOW_CM : xe BẮT ĐẦU GIẢM TỐC (vùng cảnh báo sớm)
 # Tốc độ scale tuyến tính từ 100% (tại SLOW) → 30% (sát STOP)
-OBSTACLE_STOP_CM    =  5.0   # cm — dừng cứng, áp sát tối đa
-OBSTACLE_SLOW_CM    = 10.0   # cm — vào vùng 5-10 cm thì bò chậm rồi dừng
+OBSTACLE_STOP_CM    = 12.0   # cm — an toàn hơn khi đứng gần màn hình
+OBSTACLE_SLOW_CM    = 20.0   # cm — giảm tốc sớm hơn để tránh overshoot
 
 # --- Cảm biến TRÁI / PHẢI (hai bên sườn) ---
 # Khi một bên < SIDE_SAFE_CM → lệch lái sang bên kia để thoát
-SIDE_SAFE_CM        = 10.0   # cm — cho phép đi sát hơn, chỉ né khi thật gần
+SIDE_SAFE_CM        = 15.0   # cm — bớt quẹt cạnh khi đứng gần vật xung quanh
 
 # Mức lệch lái cưỡng bức khi một bên bị chặn (0.0–1.0 normalized error)
 #   0.40 = lệch vừa (tránh tường nhẹ)
@@ -220,17 +220,17 @@ if HARDWARE_MODE == "raspi":
     MC_SNAPSHOT_JPEG_QUALITY = 60
 
     BASE_SPEED = 0
-    BBOX_HOLD_ZONE = 0.03
-    STEERING_DEAD_ZONE = 0.12
-    STEER_KP = 38.0
+    BBOX_HOLD_ZONE = 0.04
+    STEERING_DEAD_ZONE = 0.14
+    STEER_KP = 30.0
     STEER_KI = 2.0
-    STEER_KD = 8.0
-    STEER_OUTPUT_LIMIT = 55.0
+    STEER_KD = 6.0
+    STEER_OUTPUT_LIMIT = 38.0
     STEER_DERIV_ALPHA = 0.10
     STEER_LOW_SPEED_CUTOFF = 8
     STEER_LOW_SPEED_ERR = 0.20
-    STEER_STRAIGHT_LOCK_ERR = 0.06
-    STEER_MAX_DIFF_RATIO = 0.25
+    STEER_STRAIGHT_LOCK_ERR = 0.08
+    STEER_MAX_DIFF_RATIO = 0.18
 
     MOTOR_SEND_INTERVAL = 0.08
     MOTOR_CMD_DEADBAND = 6
@@ -241,3 +241,4 @@ if HARDWARE_MODE == "raspi":
     CAMERA_STALL_MAX_CONSECUTIVE = 3
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
+    SPEED_OUTPUT_LIMIT = 20.0
