@@ -1,24 +1,4 @@
-"""
-camera_follow_laptop.py — Main entry point cho Follow Me Laptop Test MVP.
-
-Luồng hoạt động:
-  1. Flask server chạy trong daemon thread
-  2. Vòng lặp camera OpenCV trong main thread
-
-Quy trình người dùng:
-  a. Mở browser laptop → http://<ip>:5000/
-  b. Điện thoại quét QR → mở /pair
-  c. Trang /pair yêu cầu người đứng trước camera và nhấn ĐĂNG KÝ
-  d. POST /capture_target → camera chụp frame, detect người gần tâm nhất → đăng ký
-  e. Hệ thống bắt đầu follow đúng người đó dù xung quanh có nhiều người khác
-
-Phím tắt trong cửa sổ OpenCV:
-  Q / ESC  — Thoát
-  E        — Toggle Emergency Stop
-  O        — Bật/tắt fake obstacle phía TRƯỚC
-  [  / ]   — Bật/tắt fake obstacle bên TRÁI / PHẢI
-  R        — Reset pairing + đăng ký
-"""
+"""Main entry point cho Follow Me voi GUI truc tiep tren man hinh."""
 
 import base64
 import os
@@ -173,8 +153,8 @@ def _ramp_motor_command(prev_left: int, prev_right: int,
 # ============================================================
 
 _STATE_COLORS = {
-    State.WAIT_FOR_PAIR:        (90,  90,  90),   # xám
-    State.PAIRED_BUT_NO_TARGET: (0,  140, 255),   # cam
+    State.IDLE:                 (90,  90,  90),   # xam
+    State.READY_TO_CAPTURE:     (0,  140, 255),   # cam
     State.FOLLOWING:            (0,  210,  0),    # xanh lá
     State.TARGET_LOST:          (0,   50, 220),   # đỏ
     State.OBSTACLE_STOP:        (30,  30, 200),   # đỏ đậm
@@ -244,8 +224,8 @@ def draw_overlay_lite(frame: np.ndarray, target_bbox, all_bboxes: list,
 
     # 1 dòng state nhỏ ở góc trên trái
     _STATE_VI = {
-        State.WAIT_FOR_PAIR: "San sang",
-        State.PAIRED_BUT_NO_TARGET: "Cho dang ky",
+        State.IDLE: "SAN SANG",
+        State.READY_TO_CAPTURE: "CHO CHUP",
         State.FOLLOWING: "FOLLOWING",
         State.TARGET_LOST: "MAT MUC TIEU",
         State.OBSTACLE_STOP: "VAT CAN",
@@ -429,10 +409,10 @@ def camera_loop():
     Vòng lặp camera chính.
 
     Ba nhiệm vụ:
-      1. Kiểm tra registration_requested từ Flask thread
-         → gọi tracker.register_from_frame() nếu được yêu cầu
+      1. Kiem tra registration_requested tu UI
+         → goi tracker.register_from_frame() neu duoc yeu cau
       2. Follow người đã đăng ký (tracker.find_target)
-      3. Tính lệnh motor + gửi fake UART
+      3. Tinh lenh motor + gui UART
     """
     print(f"\n[CAMERA] Opening camera index {config.CAMERA_INDEX} …")
     cap = cv2.VideoCapture(config.CAMERA_INDEX)
@@ -508,6 +488,9 @@ def camera_loop():
     _detect_every    = max(1, config.DETECT_EVERY_N)
     _cached_result   = None      # kết quả find_target lần detect gần nhất
     _cached_bboxes   = []
+    _idle_detect_every = max(2, _detect_every)
+    _idle_detect_count = 0
+    _idle_cached_bboxes = []
     print(f"[CAMERA] Detect mỗi {_detect_every} frame (skip-frame)")
 
     read_fail_count = 0
@@ -596,7 +579,7 @@ def camera_loop():
             continue   # bỏ qua toàn bộ logic phía dưới
 
         # ====================================================
-        #  Xử lý yêu cầu đăng ký từ Flask thread
+        #  Xử lý yêu cầu đăng ký từ GUI
         # ====================================================
         if state_manager.registration_requested:
             if not registering:
@@ -703,19 +686,29 @@ def camera_loop():
         all_bboxes  = []
         target_bbox = None
 
-        if not state_manager.is_paired:
-            state_manager.state = State.WAIT_FOR_PAIR
+        system_ready = config.USE_GUI or state_manager.is_paired
+
+        if not system_ready:
+            state_manager.state = State.IDLE
             left, right = 0, 0
 
         elif not state_manager.is_registered:
-            state_manager.state = State.PAIRED_BUT_NO_TARGET
+            state_manager.state = State.READY_TO_CAPTURE
             left, right = 0, 0
             # GUI cũng cần hiển thị bbox ứng viên để người dùng đứng đúng vị trí.
             if not config.HEADLESS or config.USE_GUI:
-                all_bboxes = detector.detect(frame)
+                _idle_detect_count += 1
+                if _idle_detect_count >= _idle_detect_every or not _idle_cached_bboxes:
+                    _idle_detect_count = 0
+                    _idle_cached_bboxes = detector.detect(frame)
+                all_bboxes = _idle_cached_bboxes
+            _cached_result = None
+            _cached_bboxes = []
 
         else:
             # --- Đã đăng ký → tìm và follow ---
+            _idle_detect_count = 0
+            _idle_cached_bboxes = []
 
             # Obstacle check chỉ khi đã đăng ký (tránh flap khi chưa follow)
             if obs.center_stop:
@@ -763,7 +756,7 @@ def camera_loop():
                 else:
                     # Không tìm thấy trong frame này
                     if last_seen is None:
-                        state_manager.state = State.PAIRED_BUT_NO_TARGET
+                        state_manager.state = State.READY_TO_CAPTURE
                         left, right = 0, 0
                         steer_pid.reset(); speed_pid.reset()
                         _smooth_cx = None; _smooth_ratio = None
@@ -791,8 +784,17 @@ def camera_loop():
         # ====================================================
         if t_now - last_tx >= config.MOTOR_SEND_INTERVAL:
             cmd_left, cmd_right = _ramp_motor_command(cmd_left, cmd_right, left, right)
-            motor.send(cmd_left, cmd_right)
-            state_manager.update_motor(cmd_left, cmd_right, last_sim)
+            sent_ok = motor.send(cmd_left, cmd_right)
+            if sent_ok:
+                state_manager.update_motor(cmd_left, cmd_right, last_sim)
+            else:
+                print("[SAFETY] UART ACK failed -> emergency stop")
+                left = right = 0
+                cmd_left = cmd_right = 0
+                state_manager.update_motor(0, 0, last_sim)
+                steer_pid.reset()
+                speed_pid.reset()
+                state_manager.set_emergency_stop()
             last_tx = t_now
 
         # ====================================================
@@ -854,17 +856,14 @@ def camera_loop():
             else:
                 state_manager.set_emergency_stop()
         elif key == ord("o"):
-            # Toggle vật cản phía TRƯỚC (chỉ có hiệu lực khi HARDWARE_MODE=laptop)
-            if config.HARDWARE_MODE != "raspi":
+            if hasattr(ultrasonic, "set_fake_obstacle"):
                 ultrasonic.set_fake_obstacle(not ultrasonic.fake_obstacle, side="center")
         elif key == ord("["):
-            # Toggle vật cản bên TRÁI
-            if config.HARDWARE_MODE != "raspi":
+            if hasattr(ultrasonic, "set_fake_obstacle"):
                 _l_on = ultrasonic._fake_cm["left"] < config.DEFAULT_DISTANCE_CM
                 ultrasonic.set_fake_obstacle(not _l_on, side="left")
         elif key == ord("]"):
-            # Toggle vật cản bên PHẢI
-            if config.HARDWARE_MODE != "raspi":
+            if hasattr(ultrasonic, "set_fake_obstacle"):
                 _r_on = ultrasonic._fake_cm["right"] < config.DEFAULT_DISTANCE_CM
                 ultrasonic.set_fake_obstacle(not _r_on, side="right")
         elif key == ord("r"):
@@ -895,63 +894,23 @@ def camera_loop():
 
 def main():
     print("=" * 60)
-    print("   Follow Me — Laptop Test MVP  (Person Re-ID)")
+    print("   Follow Me - GUI")
     print("=" * 60)
     print(f"  Camera index   : {config.CAMERA_INDEX}")
     print(f"  Detector       : {config.DETECTOR_BACKEND.upper()}")
     print(f"  Sim threshold  : {config.SIMILARITY_THRESHOLD}")
     print("=" * 60)
 
-    # ---- Menu chọn chế độ ----
-    print("\n  Chọn chế độ giao diện:")
-    print("    [1] APP  — Giao diện tkinter (không cần mạng)")
-    print("    [2] WEB  — Giao diện web Flask (cần mạng, quét QR)")
-    print()
+    from app_gui import run_gui
 
-    choice = ""
-    while choice not in ("1", "2"):
-        choice = input("  Nhập 1 hoặc 2 (mặc định=1): ").strip()
-        if choice == "":
-            choice = "1"
+    print("  GUI truc tiep: khong can phone pair")
+    print("  Phim: E=Emergency  R=Reset")
+    print("=" * 60 + "\n")
 
-    use_gui = (choice == "1")
-    config.USE_GUI = use_gui   # cập nhật runtime cho overlay selection
-    print()
-
-    if use_gui:
-        # GUI mode: camera loop trong background thread, tkinter trong main thread
-        from app_gui import run_gui
-
-        print("  → Chế độ APP (tkinter) — không cần mạng")
-        print("  Phím: E=Emergency  R=Reset")
-        print("=" * 60 + "\n")
-
-        cam_thread = threading.Thread(target=camera_loop, name="CameraLoop", daemon=True)
-        cam_thread.start()
-        time.sleep(0.5)  # chờ camera mở xong
-        run_gui()        # tkinter mainloop (block main thread)
-
-    else:
-        # Web mode: Flask trong daemon thread, camera loop trong main thread
-        from app_server import run_server
-
-        ip = config.get_local_ip()
-        print(f"  → Chế độ WEB (Flask)")
-        print(f"  LAN IP         : {ip}")
-        print(f"  QR page        : http://{ip}:{config.SERVER_PORT}/")
-        print(f"  Pair URL       : http://{ip}:{config.SERVER_PORT}/pair")
-        print("=" * 60)
-        print("  FLOW:")
-        print("  1. Mở browser laptop → QR page")
-        print("  2. Điện thoại quét QR → trang /pair")
-        print("  3. Đứng trước camera, nhấn ĐĂNG KÝ trên điện thoại")
-        print("  4. Xe follow đúng bạn dù xung quanh có nhiều người")
-        print("=" * 60 + "\n")
-
-        srv = threading.Thread(target=run_server, name="FlaskServer", daemon=True)
-        srv.start()
-        time.sleep(0.9)   # chờ Flask bind xong
-        camera_loop()     # main thread (yêu cầu của OpenCV trên Windows)
+    cam_thread = threading.Thread(target=camera_loop, name="CameraLoop", daemon=True)
+    cam_thread.start()
+    time.sleep(0.5)
+    run_gui()
 
 
 if __name__ == "__main__":

@@ -8,8 +8,6 @@ Chỉnh sửa file này để thay đổi:
   - Person detection / Re-ID thresholds
 """
 
-import socket
-
 # ============================================================
 #  DEPLOYMENT MODE
 # ============================================================
@@ -24,8 +22,7 @@ SENSOR_ENABLED = False
 # False → hiển thị cửa sổ debug camera (cần display)
 HEADLESS = True
 
-# True  → giao diện tkinter (app_gui.py), không cần mạng / Flask
-# False → giao diện web Flask + HTML (cần mạng, điện thoại quét QR)
+# GUI tkinter trực tiếp trên màn hình.
 USE_GUI = True
 
 # ============================================================
@@ -57,12 +54,6 @@ CAMERA_WIDTH  = 320       # độ phân giải capture (320 để RPi nhanh hơn
 CAMERA_HEIGHT = 240
 DETECT_EVERY_N = 3        # chạy detector mỗi N frame (1=mọi frame, 3=nhanh 3x, giữ lại bbox cũ)
 
-# ============================================================
-#  SERVER (Flask)
-# ============================================================
-SERVER_PORT = 5000
-
-# ============================================================
 #  PERSON DETECTION
 # ============================================================
 # "onnx"  → ONNX Runtime (nhẹ ~15MB, không cần torch — ưu tiên RPi)
@@ -237,22 +228,7 @@ if HARDWARE_MODE == "raspi":
     MOTOR_MAX_DELTA_PER_SEND = 12
     # ONNX trên Raspberry Pi thường dao động ~0.3-0.6s/frame.
     # Nếu để watchdog quá thấp sẽ báo giả "camera loop stalled" dù camera vẫn hoạt động.
-    CAMERA_STALL_TIMEOUT = 0.80
+    CAMERA_STALL_TIMEOUT = 1.20
     CAMERA_STALL_MAX_CONSECUTIVE = 3
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
-
-
-# ============================================================
-#  HELPER
-# ============================================================
-def get_local_ip() -> str:
-    """Trả về địa chỉ IP LAN của máy tính hiện tại."""
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        ip = s.getsockname()[0]
-        s.close()
-        return ip
-    except OSError:
-        return "127.0.0.1"

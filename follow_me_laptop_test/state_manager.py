@@ -1,67 +1,51 @@
-"""
-state_manager.py — State machine cho hệ thống Follow Me.
-
-Các trạng thái:
-  WAIT_FOR_PAIR        : Chưa có điện thoại pair. Motor dừng.
-  PAIRED_BUT_NO_TARGET : Đã pair nhưng chưa đăng ký / thấy người. Motor dừng.
-  FOLLOWING            : Đang bám theo người đã đăng ký. Motor chạy.
-  TARGET_LOST          : Mất người quá timeout. Motor dừng.
-  OBSTACLE_STOP        : Vật cản quá gần (real hoặc mock). Motor dừng.
-  EMERGENCY_STOP       : Dừng khẩn cấp do người dùng kích hoạt. Ưu tiên cao nhất.
-
-Thêm so với phiên bản cũ:
-  - Registration event: Flask báo camera thread cần chụp và đăng ký người
-  - Registration result: camera thread trả kết quả về Flask qua shared dict
-  - Emergency stop: Flask / bàn phím → camera thread dừng cứng tức thì
-"""
+"""State machine cho Follow Me."""
 
 import threading
 
+
 class State:
-    """Hằng số tên trạng thái."""
-    WAIT_FOR_PAIR        = "WAIT_FOR_PAIR"
-    PAIRED_BUT_NO_TARGET = "PAIRED_BUT_NO_TARGET"
-    FOLLOWING            = "FOLLOWING"
-    TARGET_LOST          = "TARGET_LOST"
-    OBSTACLE_STOP        = "OBSTACLE_STOP"
-    EMERGENCY_STOP       = "EMERGENCY_STOP"   # ưu tiên cao nhất — khoá motor cứng
+    """Hang so ten trang thai."""
+
+    IDLE = "IDLE"
+    READY_TO_CAPTURE = "READY_TO_CAPTURE"
+    FOLLOWING = "FOLLOWING"
+    TARGET_LOST = "TARGET_LOST"
+    OBSTACLE_STOP = "OBSTACLE_STOP"
+    EMERGENCY_STOP = "EMERGENCY_STOP"
+
+    # Backward-compat aliases cho code cu/web mode.
+    WAIT_FOR_PAIR = IDLE
+    PAIRED_BUT_NO_TARGET = READY_TO_CAPTURE
 
 
 class StateManager:
     """Thread-safe state machine + registration handshake."""
 
     def __init__(self):
-        self._lock       = threading.Lock()
-        self._state      = State.WAIT_FOR_PAIR
-        self._paired     = False
-        self._registered = False           # True sau khi đăng ký người thành công
-        self._left_spd   = 0
-        self._right_spd  = 0
-        self._last_sim   = 0.0             # similarity score lần cuối tìm thấy người
-        self._emergency  = False           # True = dừng khẩn cấp đang kích hoạt
+        self._lock = threading.Lock()
+        self._state = State.IDLE
+        self._paired = False
+        self._registered = False
+        self._left_spd = 0
+        self._right_spd = 0
+        self._last_sim = 0.0
+        self._emergency = False
 
-        # ---- Registration handshake events ----
-        # Flask  → sets  _reg_request_event  (yêu cầu capture + register)
-        # Camera → sets  _reg_done_event     (hoàn thành, dù thành công hay không)
         self._reg_request_event = threading.Event()
-        self._reg_done_event    = threading.Event()
-        self._reg_result        = {}       # {"success": bool, "message": str}
+        self._reg_done_event = threading.Event()
+        self._reg_result = {}
 
-        # ---- Multi-capture (chụp 6 tấm xác nhận) ----
-        self._mc_active     = False
-        self._mc_snapshots  = []     # [{"jpeg_b64": str}]
-        self._mc_descriptors = []    # [np.ndarray] — descriptors Re-ID
-        self._mc_face_enc   = None   # face encoding từ snapshot đầu tiên
-        self._mc_bboxes     = []     # [tuple] — bbox gốc
-        self._mc_last_time  = 0.0
-        self._mc_max        = 6
-        self._mc_confirmed  = threading.Event()
+        self._mc_active = False
+        self._mc_snapshots = []
+        self._mc_descriptors = []
+        self._mc_face_enc = None
+        self._mc_bboxes = []
+        self._mc_last_time = 0.0
+        self._mc_max = 6
+        self._mc_confirmed = threading.Event()
         self._mc_done_event = threading.Event()
-        self._mc_result     = {}     # {"success": bool, "message": str}
+        self._mc_result = {}
 
-    # ------------------------------------------------------------------ #
-    #  State
-    # ------------------------------------------------------------------ #
     @property
     def state(self) -> str:
         with self._lock:
@@ -74,41 +58,34 @@ class StateManager:
                 print(f"[STATE] {self._state} --> {new_state}")
                 self._state = new_state
 
-    # ------------------------------------------------------------------ #
-    #  Pairing
-    # ------------------------------------------------------------------ #
     def set_paired(self):
-        """Gọi khi điện thoại truy cập /pair. Chuyển sang PAIRED_BUT_NO_TARGET."""
+        """Backward-compat: danh dau he thong da san sang dang ky muc tieu."""
         with self._lock:
             if not self._paired:
                 self._paired = True
-                if self._state == State.WAIT_FOR_PAIR:
-                    print("[STATE] WAIT_FOR_PAIR --> PAIRED_BUT_NO_TARGET  (phone paired)")
-                    self._state = State.PAIRED_BUT_NO_TARGET
+            if self._state == State.IDLE:
+                print("[STATE] IDLE --> READY_TO_CAPTURE")
+                self._state = State.READY_TO_CAPTURE
 
     def reset_pairing(self):
-        """Reset toàn bộ về trạng thái ban đầu (bao gồm xoá emergency stop)."""
+        """Backward-compat: reset toan bo session ve trang thai dau."""
         with self._lock:
-            self._paired     = False
+            self._paired = False
             self._registered = False
-            self._emergency  = False
-            self._state      = State.WAIT_FOR_PAIR
-            self._left_spd   = 0
-            self._right_spd  = 0
-            self._last_sim   = 0.0
+            self._emergency = False
+            self._state = State.IDLE
+            self._left_spd = 0
+            self._right_spd = 0
+            self._last_sim = 0.0
         self._reg_request_event.clear()
         self._reg_done_event.clear()
         self._reg_result = {}
-        print("[STATE] Pairing reset --> WAIT_FOR_PAIR")
+        self._mc_confirmed.clear()
+        self._mc_done_event.clear()
+        self.cancel_multi_capture()
+        print("[STATE] Reset --> IDLE")
 
-    # ------------------------------------------------------------------ #
-    #  Emergency stop
-    # ------------------------------------------------------------------ #
     def set_emergency_stop(self):
-        """
-        Kích hoạt dừng khẩn cấp — ưu tiên cao nhất, motor khoá cứng.
-        Gọi được từ Flask thread hoặc camera thread (thread-safe).
-        """
         with self._lock:
             if not self._emergency:
                 self._emergency = True
@@ -116,29 +93,18 @@ class StateManager:
             self._state = State.EMERGENCY_STOP
 
     def clear_emergency_stop(self):
-        """
-        Giải phóng dừng khẩn cấp — xe tiếp tục hoạt động bình thường.
-        Chỉ chuyển về PAIRED_BUT_NO_TARGET (an toàn) chứ không tự FOLLOWING.
-        """
         with self._lock:
             if self._emergency:
                 self._emergency = False
-                print("[STATE] Emergency stop cleared --> PAIRED_BUT_NO_TARGET")
-            # Chuyển về trạng thái chờ an toàn (camera loop tự cập nhật tiếp)
+                print("[STATE] Emergency stop cleared")
             if self._state == State.EMERGENCY_STOP:
-                self._state = (
-                    State.PAIRED_BUT_NO_TARGET if self._paired
-                    else State.WAIT_FOR_PAIR
-                )
+                self._state = State.READY_TO_CAPTURE if self._paired else State.IDLE
 
     @property
     def is_emergency(self) -> bool:
         with self._lock:
             return self._emergency
 
-    # ------------------------------------------------------------------ #
-    #  Pairing
-    # ------------------------------------------------------------------ #
     @property
     def is_paired(self) -> bool:
         with self._lock:
@@ -153,26 +119,15 @@ class StateManager:
         with self._lock:
             self._registered = value
 
-    # ------------------------------------------------------------------ #
-    #  Registration handshake (Flask ↔ Camera thread)
-    # ------------------------------------------------------------------ #
     def request_registration(self, timeout: float = 4.0):
-        """
-        Gọi từ Flask thread.
-        Báo camera thread hãy chụp frame và đăng ký người.
-        Block cho đến khi camera trả kết quả (hoặc timeout).
-
-        Returns:
-            (success: bool, message: str)
-        """
         self._reg_result = {}
         self._reg_done_event.clear()
-        self._reg_request_event.set()       # báo camera thread
+        self._reg_request_event.set()
 
         got = self._reg_done_event.wait(timeout=timeout)
         if not got:
             self._reg_request_event.clear()
-            return False, "Timeout — camera không phản hồi"
+            return False, "Timeout - camera khong phan hoi"
         return (
             self._reg_result.get("success", False),
             self._reg_result.get("message", ""),
@@ -180,32 +135,25 @@ class StateManager:
 
     @property
     def registration_requested(self) -> bool:
-        """Camera thread kiểm tra mỗi frame."""
         return self._reg_request_event.is_set()
 
     def complete_registration(self, success: bool, message: str):
-        """
-        Gọi từ camera thread sau khi đăng ký xong (thành công hay thất bại).
-        """
         self._reg_result = {"success": success, "message": message}
         self._reg_request_event.clear()
         self._reg_done_event.set()
         with self._lock:
             self._registered = success
-        print(f"[STATE] Registration complete — success={success}  msg={message}")
+            self._state = State.FOLLOWING if success else State.READY_TO_CAPTURE
+        print(f"[STATE] Registration complete - success={success}  msg={message}")
 
-    # ------------------------------------------------------------------ #
-    #  Multi-capture (chụp 6 tấm → xác nhận)
-    # ------------------------------------------------------------------ #
     def start_multi_capture(self):
-        """Flask gọi — bắt đầu chụp 6 tấm."""
         with self._lock:
-            self._mc_active      = True
-            self._mc_snapshots   = []
+            self._mc_active = True
+            self._mc_snapshots = []
             self._mc_descriptors = []
-            self._mc_face_enc    = None
-            self._mc_bboxes      = []
-            self._mc_last_time   = 0.0
+            self._mc_face_enc = None
+            self._mc_bboxes = []
+            self._mc_last_time = 0.0
             self._mc_confirmed.clear()
             self._mc_done_event.clear()
             self._mc_result = {}
@@ -232,7 +180,6 @@ class StateManager:
             self._mc_last_time = val
 
     def add_mc_snapshot(self, jpeg_b64: str, descriptor, face_enc=None, bbox=None):
-        """Camera thread gọi — thêm 1 snapshot."""
         with self._lock:
             if len(self._mc_snapshots) >= self._mc_max:
                 return
@@ -245,7 +192,6 @@ class StateManager:
         print(f"[STATE] Multi-capture snapshot {count}/{self._mc_max}")
 
     def get_mc_snapshots(self) -> dict:
-        """Flask gọi — trả về trạng thái capture hiện tại."""
         with self._lock:
             return {
                 "active": self._mc_active,
@@ -256,20 +202,15 @@ class StateManager:
             }
 
     def get_mc_data(self) -> tuple:
-        """Camera thread gọi khi user confirm — lấy descriptors + face."""
         with self._lock:
             return list(self._mc_descriptors), self._mc_face_enc, list(self._mc_bboxes)
 
     def confirm_multi_capture(self, timeout: float = 4.0):
-        """
-        Flask gọi — user xác nhận. Báo camera thread đăng ký bằng 6 descriptors.
-        Block cho đến khi camera trả kết quả.
-        """
         self._mc_confirmed.set()
         got = self._mc_done_event.wait(timeout=timeout)
         if not got:
             self._mc_confirmed.clear()
-            return False, "Timeout — camera không phản hồi"
+            return False, "Timeout - camera khong phan hoi"
         return (
             self._mc_result.get("success", False),
             self._mc_result.get("message", ""),
@@ -280,35 +221,31 @@ class StateManager:
         return self._mc_confirmed.is_set()
 
     def complete_multi_capture(self, success: bool, message: str):
-        """Camera thread gọi — đăng ký xong."""
         self._mc_result = {"success": success, "message": message}
         with self._lock:
             self._mc_active = False
             self._registered = success
+            self._state = State.FOLLOWING if success else State.READY_TO_CAPTURE
         self._mc_confirmed.clear()
         self._mc_done_event.set()
-        print(f"[STATE] Multi-capture confirm — success={success}  msg={message}")
+        print(f"[STATE] Multi-capture confirm - success={success}  msg={message}")
 
     def cancel_multi_capture(self):
-        """Flask gọi — user hủy."""
         with self._lock:
-            self._mc_active      = False
-            self._mc_snapshots   = []
+            self._mc_active = False
+            self._mc_snapshots = []
             self._mc_descriptors = []
-            self._mc_face_enc    = None
-            self._mc_bboxes      = []
+            self._mc_face_enc = None
+            self._mc_bboxes = []
         self._mc_confirmed.clear()
         self._mc_done_event.clear()
         print("[STATE] Multi-capture cancelled")
 
-    # ------------------------------------------------------------------ #
-    #  Motor speeds (dùng cho debug overlay)
-    # ------------------------------------------------------------------ #
     def update_motor(self, left: int, right: int, similarity: float = 0.0):
         with self._lock:
-            self._left_spd  = left
+            self._left_spd = left
             self._right_spd = right
-            self._last_sim  = similarity
+            self._last_sim = similarity
 
     @property
     def motor_speeds(self):
@@ -320,21 +257,13 @@ class StateManager:
         with self._lock:
             return self._last_sim
 
-    # ------------------------------------------------------------------ #
-    #  Shared frame for web streaming (camera thread → Flask MJPEG)
-    # ------------------------------------------------------------------ #
     def update_frame(self, jpeg_bytes: bytes):
-        """Camera thread gọi mỗi frame — lưu JPEG đã encode."""
         with self._lock:
             self._latest_jpeg = jpeg_bytes
 
     def get_frame(self) -> bytes:
-        """Flask video_feed route gọi để lấy frame mới nhất."""
         with self._lock:
             return getattr(self, "_latest_jpeg", b"")
 
 
-# ------------------------------------------------------------------ #
-#  Singleton
-# ------------------------------------------------------------------ #
 state_manager = StateManager()

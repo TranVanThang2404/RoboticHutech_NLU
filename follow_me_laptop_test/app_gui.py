@@ -1,13 +1,4 @@
-"""
-app_gui.py - Giao dien tkinter offline cho che do GUI.
-
-GUI mode khong can phone pair:
-  - Dung truoc camera
-  - Nhan CHUP & THEO DOI
-  - Camera thread dang ky nguoi noi bat nhat trong frame
-  - Luu anh da chup ra thu muc captures/
-  - Xe follow nguoi vua dang ky
-"""
+"""GUI tkinter offline: chup, dang ky, va follow truc tiep tren man hinh."""
 
 import io
 import threading
@@ -40,9 +31,6 @@ class FollowMeGUI:
         self._cam_photo: ImageTk.PhotoImage | None = None
         self._closed = False
         self._registering = False
-
-        # GUI mode khong can phone pair, nhung state machine van can "ready".
-        state_manager.set_paired()
 
         self._build_ui()
         self._poll_camera()
@@ -170,6 +158,8 @@ class FollowMeGUI:
                 self._set_status("Mat muc tieu - dung vao giua khung hinh", "#ff5252", "#3b0d0d")
             elif st == State.OBSTACLE_STOP:
                 self._set_status("Tam dung - co vat can phia truoc", ORANGE, BG_PANEL)
+            elif st == State.READY_TO_CAPTURE:
+                self._set_status("San sang chup muc tieu", GRAY_L, BG_PANEL)
             else:
                 self._set_status("Dung truoc camera va nhan CHUP & THEO DOI", GRAY_L, BG_PANEL)
 
@@ -216,7 +206,6 @@ class FollowMeGUI:
     def _reset(self):
         self._registering = False
         state_manager.reset_pairing()
-        state_manager.set_paired()
         self.btn_register.configure(state=tk.NORMAL, text="CHUP & THEO DOI")
         self._set_status("Da reset - nhan CHUP & THEO DOI de dang ky lai", GRAY_L, BG_PANEL)
 
