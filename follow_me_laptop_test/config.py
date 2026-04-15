@@ -52,7 +52,7 @@ USE_GUI = True
 CAMERA_INDEX = 0          # 0 = webcam tích hợp | 1 = USB camera đầu tiên
 CAMERA_WIDTH  = 720
 CAMERA_HEIGHT = 480
-DETECT_EVERY_N = 2        # 3→2: detect thường xuyên hơn, bớt dùng bbox cũ
+DETECT_EVERY_N = 1        # 3→2: detect thường xuyên hơn, bớt dùng bbox cũ
 
 #  PERSON DETECTION
 # ============================================================
@@ -108,7 +108,7 @@ STEER_STRAIGHT_LOCK_ERR = 0.05  # nếu mục tiêu gần tâm hơn mức này t
 STEER_MAX_DIFF_RATIO = 0.35     # chênh lệch tối đa giữa 2 bánh khi đang FOLLOWING tiến tới
 STEER_APPROACH_SCALE = 0.55     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
 STEER_CENTER_PRIORITY_ERR = 0.22  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
-WHEEL_TRIM_LEFT = 1.35          # bánh trái yếu hơn → bù 35% (tăng từ 25%)
+WHEEL_TRIM_LEFT = 1.45          # bánh trái yếu hơn → bù 35% (tăng từ 25%)
 WHEEL_TRIM_RIGHT = 1.00         # giữ nguyên bánh phải
 WHEEL_FORWARD_BOOST_LEFT = 0    # bỏ boost cố định, ưu tiên bù theo tỉ lệ 25%
 WHEEL_FORWARD_BOOST_RIGHT = 0   # bánh phải giữ nguyên
