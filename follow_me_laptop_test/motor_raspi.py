@@ -35,14 +35,11 @@ def build_frame(speed_a, dir_a, speed_b, dir_b) -> bytes:
     return bytes([FRAME_SOF]) + payload + bytes([calc_crc(payload), FRAME_EOF])
 
 
-def _wheel_to_channel_dir(wheel: str, value: int) -> tuple[int, int]:
-    """Map lenh banh trai/phai sang speed+dir phu hop voi cuc tinh tung kenh."""
+def _channel_cmd(value: int, forward_dir: int) -> tuple[int, int]:
+    """Map lenh motor -100..100 sang speed+dir theo cuc tinh cua kenh."""
     value = max(-100, min(100, int(value)))
     speed = round(abs(value) / 100 * 255)
-    if wheel == "right":
-        direction = 1 if value < 0 else 0
-    else:
-        direction = 0 if value < 0 else 1
+    direction = (1 - forward_dir) if value < 0 else forward_dir
     return speed, direction
 
 
@@ -163,12 +160,17 @@ class RealMotorUART:
         if (left, right) == self._last_cmd:
             return True
         # Mapping kenh A/B co the dao neu phan cung dang noi nguoc trai/phai.
+        # Quan trong: cuc tinh tien/lui van phai theo KENH A/B, khong theo ten banh.
         if getattr(config, "MOTOR_SWAP_LEFT_RIGHT", False):
-            speed_a, dir_a = _wheel_to_channel_dir("left", left)
-            speed_b, dir_b = _wheel_to_channel_dir("right", right)
+            a_cmd = left
+            b_cmd = right
         else:
-            speed_a, dir_a = _wheel_to_channel_dir("right", right)
-            speed_b, dir_b = _wheel_to_channel_dir("left", left)
+            a_cmd = right
+            b_cmd = left
+
+        # Kenh A tien = dir 0, kenh B tien = dir 1 (theo STM32 hien tai)
+        speed_a, dir_a = _channel_cmd(a_cmd, forward_dir=0)
+        speed_b, dir_b = _channel_cmd(b_cmd, forward_dir=1)
         frame = build_frame(speed_a, dir_a, speed_b, dir_b)
         try:
             hex_str = " ".join(f"{b:02x}" for b in frame)
