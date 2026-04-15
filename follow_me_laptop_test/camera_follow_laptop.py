@@ -86,6 +86,14 @@ def compute_motor(
     if (bbox_area_ratio < (config.BBOX_TARGET_RATIO - getattr(config, "FOLLOW_MIN_ERR", 0.0))
             and not obs.center_stop):
         base = max(base, int(getattr(config, "FOLLOW_MIN_SPEED", 0)))
+    elif (base <= 0 and
+            bbox_area_ratio < float(getattr(config, "FOLLOW_FORCE_APPROACH_RATIO", 0.0))):
+        # Fallback thực dụng cho trường hợp bbox đang phóng đại khi đứng gần màn hình:
+        # nếu sensor trước vẫn còn xa thì cứ bò tới cho đến khi vào vùng slow/stop.
+        if not obs.center_slow:
+            base = max(base, int(getattr(config, "FOLLOW_MIN_SPEED", 0)))
+        elif not obs.center_stop:
+            base = max(base, max(1, int(getattr(config, "FOLLOW_MIN_SPEED", 0) * 0.5)))
 
     # Giảm tốc theo cảm biến GIỮA (slow_factor: 1.0 → 0.30)
     base = max(min_speed, int(base * obs.slow_factor))

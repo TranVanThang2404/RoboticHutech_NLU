@@ -44,6 +44,19 @@ def _apply_trim(value: int, trim: float) -> int:
     return scaled if value > 0 else -scaled
 
 
+def _apply_min_effective_speed(value: int) -> int:
+    """Đẩy lệnh nhỏ lên ngưỡng đủ thắng ma sát khởi động của motor."""
+    if value == 0:
+        return 0
+    min_eff = int(getattr(config, "MOTOR_MIN_EFFECTIVE_SPEED", 0))
+    if min_eff <= 0:
+        return value
+    mag = abs(value)
+    if mag >= min_eff:
+        return value
+    return min_eff if value > 0 else -min_eff
+
+
 class RealMotorUART:
     def __init__(self, port="/dev/ttyACM0", baudrate=115200, timeout=0.005):
         self._port     = port
@@ -77,6 +90,8 @@ class RealMotorUART:
         right = max(-100, min(100, int(right)))
         left  = _apply_trim(left, getattr(config, "WHEEL_TRIM_LEFT", 1.0))
         right = _apply_trim(right, getattr(config, "WHEEL_TRIM_RIGHT", 1.0))
+        left  = _apply_min_effective_speed(left)
+        right = _apply_min_effective_speed(right)
 
         # Loại bỏ thay đổi rất nhỏ để xe bớt giật và STM32 không bị spam setpoint.
         if self._last_cmd != (-999, -999):
@@ -106,7 +121,8 @@ class RealMotorUART:
                 self.ser.write(frame)
                 if self._wait_for_ack():
                     self._last_cmd = (left, right)
-                    if abs(left) >= 20 or abs(right) >= 20 or (left == 0 and right == 0):
+                    log_min = int(getattr(config, "MOTOR_LOG_MIN_ABS", 20))
+                    if abs(left) >= log_min or abs(right) >= log_min or (left == 0 and right == 0):
                         print(
                             f"[UART] cmd L={left:>4} R={right:>4} -> "
                             f"A(speed={speed_a:>3},dir={dir_a}) "

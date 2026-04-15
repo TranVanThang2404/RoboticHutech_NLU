@@ -147,8 +147,8 @@ STEER_LOW_SPEED_ERR    = 0.0
 # BBOX_TARGET_RATIO: tỷ lệ bbox/frame tại khoảng cách follow lý tưởng
 #   0.10 ≈ người ở ~1.5–2 m  (camera laptop góc rộng)
 #   0.15 ≈ người ở ~1–1.5 m
-BBOX_TARGET_RATIO      =  0.18  # mục tiêu xa hơn mức đăng ký hiện tại; phù hợp dừng khoảng ~15 cm
-BBOX_HOLD_ZONE         =  0.03  # vẫn có vùng giữ nhưng không quá rộng để xe còn chịu tiến
+BBOX_TARGET_RATIO      =  0.42  # PID ước lượng là chính; sensor trước chỉ chặn ở mốc 15 cm
+BBOX_HOLD_ZONE         =  0.05  # vùng giữ vừa phải quanh điểm ước lượng
 
 SPEED_KP               =  60.0  # gain tỉ lệ (hạ từ 100 → 60, bớt giật tiến/lùi)
 SPEED_KI               =   2.0  # gain tích phân (hạ từ 5 → 2, tránh tích lũy sai)
@@ -156,8 +156,11 @@ SPEED_KD               =   8.0  # gain vi phân (hạ từ 15 → 8)
 SPEED_INTEGRAL_LIMIT   =  15.0  # anti-windup (speed units)
 SPEED_OUTPUT_LIMIT     =  24.0  # hãm tốc độ tiếp cận gần để detector ổn định hơn
 SPEED_DERIV_ALPHA      =   0.10  # lọc mạnh hơn (0.10 = rất mượt, bớt noise bbox)
-FOLLOW_MIN_SPEED       =  16     # có target và còn xa hơn mong muốn thì vẫn bò tới tối thiểu
+FOLLOW_MIN_SPEED       =  24     # có target và còn xa hơn mong muốn thì vẫn tiến đủ lực
 FOLLOW_MIN_ERR         =  0.03   # thiếu nhẹ khoảng cách là đã bắt đầu bò tới
+FOLLOW_FORCE_APPROACH_RATIO = 0.45  # nếu bbox vẫn dưới mức này thì cho phép tiến dựa trên sensor
+MOTOR_MIN_EFFECTIVE_SPEED = 24   # lệnh nhỏ hơn mức này thường không thắng nổi ma sát khởi động
+MOTOR_LOG_MIN_ABS = 8            # in log cả các lệnh nhỏ để dễ debug
 
 # Backward-compat alias (không xóa để không phá code cũ nếu có)
 KP = STEER_KP / 100.0   # KP cũ ≈ steer_output/base ≈ 80/100 = 0.80
@@ -243,6 +246,9 @@ if HARDWARE_MODE == "raspi":
     CAMERA_STALL_MAX_CONSECUTIVE = 3
     CAMERA_READ_FAIL_LIMIT = 3
     MOTOR_REVERSE_BRAKE_THRESHOLD = 10
-    SPEED_OUTPUT_LIMIT = 24.0
-    FOLLOW_MIN_SPEED = 18
+    SPEED_OUTPUT_LIMIT = 32.0
+    FOLLOW_MIN_SPEED = 28
     FOLLOW_MIN_ERR = 0.02
+    FOLLOW_FORCE_APPROACH_RATIO = 0.50
+    MOTOR_MIN_EFFECTIVE_SPEED = 28
+    MOTOR_LOG_MIN_ABS = 8
