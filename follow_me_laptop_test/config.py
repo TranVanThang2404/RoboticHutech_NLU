@@ -108,12 +108,12 @@ STEER_STRAIGHT_LOCK_ERR = 0.05  # nếu mục tiêu gần tâm hơn mức này t
 STEER_MAX_DIFF_RATIO = 0.35     # chênh lệch tối đa giữa 2 bánh khi đang FOLLOWING tiến tới
 STEER_APPROACH_SCALE = 0.55     # khi còn đang tiến tới thì giảm độ bẻ lái để ưu tiên đi thẳng
 STEER_CENTER_PRIORITY_ERR = 0.22  # nếu lệch tâm chưa quá lớn thì vẫn ưu tiên 2 bánh gần bằng nhau
-WHEEL_TRIM_LEFT = 2.10          # tăng thêm vì bánh trái vẫn yếu rõ rệt
+WHEEL_TRIM_LEFT = 1.25          # bánh trái yếu hơn khoảng 25% so với bánh phải
 WHEEL_TRIM_RIGHT = 1.00         # giữ nguyên bánh phải
-WHEEL_FORWARD_BOOST_LEFT = 28   # cộng thêm lực cố định mạnh hơn cho bánh trái khi chạy tiến
+WHEEL_FORWARD_BOOST_LEFT = 0    # bỏ boost cố định, ưu tiên bù theo tỉ lệ 25%
 WHEEL_FORWARD_BOOST_RIGHT = 0   # bánh phải giữ nguyên
-STEER_RIGHT_LEFT_BOOST = 16     # khi cần quẹo phải, cộng thêm lực rõ hơn cho bánh trái
-STEER_LEFT_RIGHT_REDUCE = 3     # giảm nhẹ bánh phải khi quẹo trái, tránh bù quá tay
+STEER_RIGHT_LEFT_BOOST = 0      # tắt bù theo hướng rẽ để tránh làm lệch thêm
+STEER_LEFT_RIGHT_REDUCE = 0     # tắt giảm bánh phải
 MOTOR_SWAP_LEFT_RIGHT = True    # phần cứng thực tế đang phản ứng như bị đảo trái/phải
 
 # ============================================================
