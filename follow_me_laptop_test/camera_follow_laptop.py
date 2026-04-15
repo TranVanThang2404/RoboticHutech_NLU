@@ -78,10 +78,11 @@ def compute_motor(
         speed_err = 0.0
     speed_out = speed_pid.compute(speed_err, dt)       # speed units điều chỉnh
     base = int(config.BASE_SPEED + speed_out)
-    base = max(config.MIN_SPEED, min(config.MAX_SPEED, base))
+    min_speed = 0 if getattr(config, "ONLY_FORWARD_MODE", False) else config.MIN_SPEED
+    base = max(min_speed, min(config.MAX_SPEED, base))
 
     # Giảm tốc theo cảm biến GIỮA (slow_factor: 1.0 → 0.30)
-    base = max(config.MIN_SPEED, int(base * obs.slow_factor))
+    base = max(min_speed, int(base * obs.slow_factor))
 
     # ============ PID Steering: tính speed differential ============
     steer_err = (cx - frame_cx) / max(frame_cx, 1)
@@ -120,9 +121,9 @@ def compute_motor(
         steer_out = max(-abs(base), min(abs(base), steer_out))
 
     # ============ Tổng hợp đầu ra ============
-    left_speed  = max(config.MIN_SPEED, min(config.MAX_SPEED,
+    left_speed  = max(min_speed, min(config.MAX_SPEED,
                       int(base + steer_out)))
-    right_speed = max(config.MIN_SPEED, min(config.MAX_SPEED,
+    right_speed = max(min_speed, min(config.MAX_SPEED,
                       int(base - steer_out)))
     return left_speed, right_speed
 
@@ -766,17 +767,20 @@ def camera_loop():
                         target_bbox = None
                         steer_pid.reset(); speed_pid.reset()
                         _smooth_cx = None; _smooth_ratio = None
-                        # --- Spin-search: xoay tại chỗ tìm người ---
-                        if lost_since is None:
-                            lost_since = t_now
-                        spin_elapsed = t_now - lost_since
-                        if spin_elapsed < config.SEARCH_SPIN_DURATION:
-                            spd = config.SEARCH_SPIN_SPEED
-                            d   = config.SEARCH_SPIN_DIR
-                            left  =  spd * d    # +spd = bánh trái tiến
-                            right = -spd * d    # -spd = bánh phải lùi → xoay tại chỗ
+                        # --- Spin-search: nếu chỉ cho đi tới thì không xoay bằng bánh lùi ---
+                        if getattr(config, "ONLY_FORWARD_MODE", False):
+                            left, right = 0, 0
                         else:
-                            left, right = 0, 0  # hết thời gian xoay → dừng hẳn
+                            if lost_since is None:
+                                lost_since = t_now
+                            spin_elapsed = t_now - lost_since
+                            if spin_elapsed < config.SEARCH_SPIN_DURATION:
+                                spd = config.SEARCH_SPIN_SPEED
+                                d   = config.SEARCH_SPIN_DIR
+                                left  =  spd * d    # +spd = bánh trái tiến
+                                right = -spd * d    # -spd = bánh phải lùi → xoay tại chỗ
+                            else:
+                                left, right = 0, 0  # hết thời gian xoay → dừng hẳn
                     # else: còn trong grace period → giữ lệnh cuối
 
         # ====================================================

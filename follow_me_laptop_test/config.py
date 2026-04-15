@@ -109,6 +109,7 @@ STEERING_DEAD_ZONE = 0.08
 BASE_SPEED  = 60          # Tốc độ nền khi đi thẳng (0–100)
 MAX_SPEED   = 100         # Giới hạn tốc độ tối đa
 MIN_SPEED   = -60         # Giới hạn tốc độ tối thiểu (âm = lùi)
+ONLY_FORWARD_MODE = True  # True -> chặn mọi lệnh lùi, xe chỉ được đi tới hoặc dừng
 
 # ============================================================
 #  PID — STEERING (lái trái/phải)
